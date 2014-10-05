@@ -25,16 +25,15 @@
 
 #pragma once
 
-#include "../common/defs.h"
+#include "common/defs.h"
 
 #ifdef MAC_OS_CG_GRAB_SUPPORT
-
-#include "GrabberBase.hpp"
 
 #include <CoreGraphics/CGColorSpace.h>
 #include <CoreGraphics/CGContext.h>
 #include <CoreGraphics/CGImage.h>
 
+#include "GrabberBase.hpp"
 
 class MacOSGrabber : public GrabberBase
 {
@@ -48,7 +47,7 @@ protected slots:
     virtual GrabResult grabScreens();
     virtual bool reallocate(const QList< ScreenInfo > &grabScreens);
 
-    virtual QList< ScreenInfo > * screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets);
+    virtual QList< ScreenInfo > * screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabbedArea *> &grabWidgets);
 private:
     void freeScreens();
     void toGrabbedScreen(CGImageRef, GrabbedScreen *);

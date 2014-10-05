@@ -31,6 +31,8 @@
 #include "enums.hpp"
 
 class GrabberContext;
+class GrabbedArea;
+class GrabWidget;
 class TimeEvaluations;
 class D3D10Grabber;
 
@@ -109,6 +111,7 @@ private:
     QTimer *m_timerFakeGrab;
     QWidget *m_parentWidget;
     QList<GrabWidget *> m_ledWidgets;
+    QList<GrabbedArea *> m_ledWidgetsToGrabbedArea;
     QList<QRgb> m_grabResult;
     const static QColor m_backgroundAndTextColors[10][2];
     TimeEvaluations *m_timeEval;

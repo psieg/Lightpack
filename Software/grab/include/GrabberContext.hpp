@@ -30,7 +30,7 @@
 #include <QList>
 #include <QRgb>
 
-class GrabWidget;
+class GrabbedArea;
 
 struct AllocatedBuf {
     AllocatedBuf()
@@ -95,7 +95,7 @@ public:
         }
     }
 public:
-    QList<GrabWidget *> *grabWidgets;
+    QList<GrabbedArea *> *grabWidgets;
     QList<QRgb> *grabResult;
 
 
