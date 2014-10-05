@@ -23,20 +23,21 @@
  *
  */
 
+#include "LightpackApiTest.hpp"
+
 #include <QString>
 #include <QtWidgets/QApplication>
 #include <QTest>
+#include <stdlib.h>
+#include <iostream>
 
-#include "debug.h"
 #include "ApiServer.hpp"
 #include "LightpackPluginInterface.hpp"
 #include "Settings.hpp"
-#include "enums.hpp"
 #include "SettingsWindowMockup.hpp"
-
-#include <stdlib.h>
-#include <iostream>
-#include "LightpackApiTest.hpp"
+#include "common/DebugOut.hpp"
+#include "common/PrintHelpers.hpp"
+#include "enums.hpp"
 
 using namespace std;
 using namespace SettingsScope;

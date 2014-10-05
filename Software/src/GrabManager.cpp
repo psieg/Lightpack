@@ -28,7 +28,7 @@
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QDesktopWidget>
 
-#include "debug.h"
+#include "common/DebugOut.hpp"
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 #include "GrabWidget.hpp"

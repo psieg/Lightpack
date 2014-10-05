@@ -28,7 +28,6 @@
 
 #include <QObject>
 #include <QRgb>
-#include "debug.h"
 
 class ApiServerSetColorTask : public QObject
 {

@@ -25,10 +25,11 @@
  */
 
 #include "LedDeviceVirtual.hpp"
+
+#include "common/DebugOut.hpp"
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 #include "enums.hpp"
-#include "debug.h"
 
 using namespace SettingsScope;
 

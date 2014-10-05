@@ -24,12 +24,14 @@
  *
  */
 
+#include "MonitorConfigurationPage.hpp"
+
 #include <QDesktopWidget>
 #include <QRadioButton>
-#include "MonitorConfigurationPage.hpp"
+
+#include "common/DebugOut.hpp"
 #include "ui_MonitorConfigurationPage.h"
 #include "MonitorIdForm.hpp"
-#include "debug.h"
 
 MonitorConfigurationPage::MonitorConfigurationPage(bool isInitFromSettings, TransientSettings *ts, QWidget *parent) :
     QWizardPage(parent),

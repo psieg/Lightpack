@@ -23,15 +23,16 @@
  *
  */
 
-#include <QGuiApplication>
 #include"MacOSGrabber.hpp"
 
 #ifdef MAC_OS_CG_GRAB_SUPPORT
 
-#include <CoreGraphics/CoreGraphics.h>
 #include <ApplicationServices/ApplicationServices.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <QGuiApplication>
+
 #include "calculations.hpp"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 
 const uint32_t kMaxDisplaysCount = 10;
 

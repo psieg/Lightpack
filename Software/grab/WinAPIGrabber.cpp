@@ -27,10 +27,11 @@
 
 #ifdef WINAPI_GRAB_SUPPORT
 
-#include "../src/debug.h"
 #include <cmath>
+
+#include "common/DebugOut.hpp"
 #include "calculations.hpp"
-#include "../src/enums.hpp"
+#include "../prismatic/enums.hpp"
 
 struct WinAPIScreenData
 {

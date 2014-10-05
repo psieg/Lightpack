@@ -23,10 +23,11 @@
  *
  */
 
-#include "GrabberContext.hpp"
-#include "GrabWidget.hpp"
 #include "GrabberBase.hpp"
-#include "src/debug.h"
+
+#include "common/DebugOut.hpp"
+#include "common/PrintHelpers.hpp"
+#include "GrabberContext.hpp"
 
 namespace
 {

@@ -27,7 +27,7 @@
 #include <QXmlStreamReader>
 #include <QNetworkReply>
 #include "version.h"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 #include "UpdatesProcessor.hpp"
 
 //#define UPDATE_CHECK_URL "https://psieg.de/lightpack/update.xml"

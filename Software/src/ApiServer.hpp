@@ -34,10 +34,11 @@
 #include <QSet>
 #include <QRgb>
 #include <QTime>
+
+#include "common/DebugOut.hpp"
 #include "SettingsWindow.hpp"
 #include "LightpackPluginInterface.hpp"
 #include "ApiServerSetColorTask.hpp"
-#include "debug.h"
 #include "enums.hpp"
 
 struct ClientInfo

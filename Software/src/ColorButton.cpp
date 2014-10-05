@@ -1,8 +1,10 @@
-#include "../common/defs.h"
 #include "ColorButton.hpp"
-#include "debug.h"
+
 #include <QPainter>
 #include <QColorDialog>
+
+#include "common/DebugOut.hpp"
+#include "common/defs.h"
 
 #define COLOR_LABEL_SPACING 5
 

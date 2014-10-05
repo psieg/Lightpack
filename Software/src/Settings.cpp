@@ -34,7 +34,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QUuid>
-#include "debug.h"
+#include "common/DebugOut.hpp"
 
 #define MAIN_CONFIG_FILE_VERSION    "4.0"
 

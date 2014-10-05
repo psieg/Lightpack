@@ -1,5 +1,5 @@
 /*
- * debug.h
+ *  DebugOut.hpp
  *
  *  Created on: 22.03.2011
  *      Author: Mike Shatohin (brunql)
@@ -26,11 +26,8 @@
 
 #pragma once
 
-#ifndef NO_QT
 #include <QtDebug>
-#include <QString>
-#include <QRect>
-#endif
+
 // Set and store in main.cpp file
 extern unsigned g_debugLevel;
 
@@ -49,14 +46,6 @@ namespace Debug
         LowLevel  = 1,
         ZeroLevel = 0
     };
-#ifndef NO_QT
-    inline const QString toString(QRect rect) {
-        return QString("x=%1, y=%2, width=%3, height=%4").arg(QString::number(rect.x())
-                                                              , QString::number(rect.y())
-                                                              , QString::number(rect.width())
-                                                              , QString::number(rect.height()));
-    }
-#endif
 }
 
 #define DEBUG_HIGH_LEVEL    DEBUG_OUT_FUNC_INFO( 3 )

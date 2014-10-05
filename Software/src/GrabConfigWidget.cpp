@@ -24,11 +24,13 @@
  */
 
 #include "GrabConfigWidget.hpp"
-#include "ui_GrabConfigWidget.h"
+
 #include <QPainter>
 #include <QBitmap>
 #include <QDesktopWidget>
-#include "debug.h"
+
+#include "common/DebugOut.hpp"
+#include "ui_GrabConfigWidget.h"
 
 const unsigned GrabConfigWidget::MarginArrow = 20;
 const unsigned GrabConfigWidget::Margin = 10;

@@ -30,11 +30,12 @@
 #include <QVariant>
 #include <QMutex>
 #include <QColor>
+#include <QPoint>
 
 #include "SettingsDefaults.hpp"
 #include "enums.hpp"
-#include "../common/defs.h"
-#include "debug.h"
+#include "common/defs.h"
+#include "common/DebugOut.hpp"
 #include "types.h"
 
 namespace SettingsScope

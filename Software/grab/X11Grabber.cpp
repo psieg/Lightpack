@@ -36,6 +36,8 @@
 #include <errno.h>
 #include <inttypes.h>
 
+#include "common/DebugOut.hpp"
+
 struct X11GrabberData
 {
     X11GrabberData()

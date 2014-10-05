@@ -24,14 +24,15 @@
  *
  */
 
+#include "GrabWidget.hpp"
 
 #include <QtGui>
 #include <QtWidgets/QDesktopWidget>
 #include <QTextItem>
-#include "GrabWidget.hpp"
+ 
 #include "ui_GrabWidget.h"
 #include "Settings.hpp"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 
 using namespace SettingsScope;
 

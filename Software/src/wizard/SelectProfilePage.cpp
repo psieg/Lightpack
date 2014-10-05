@@ -23,11 +23,14 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include <QLineEdit>
+
 #include "SelectProfilePage.hpp"
+
+#include <QLineEdit>
+
+#include "common/DebugOut.hpp"
 #include "ui_SelectProfilePage.h"
 #include "Settings.hpp"
-#include "debug.h"
 
 using namespace SettingsScope;
 
