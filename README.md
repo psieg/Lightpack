@@ -1,6 +1,7 @@
 Lightpack project with Prismatik flavour
 ---------
-Just a test of exernal PRs being built by my jenkins
+Just a test of exernal PRs being built by my jenkins. hm.
+
 *Modified version which includes various improvements for Windows, esp. a Desktop Duplication API Grabber*
 
 **Table of content:** <br />
