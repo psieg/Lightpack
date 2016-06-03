@@ -1,0 +1,12 @@
+language: cpp
+#language: objective-c
+
+os:
+  - osx
+
+before_install:
+-	brew update
+-	brew install qt5
+
+script: |
+  qmake -v
