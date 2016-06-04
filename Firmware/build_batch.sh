@@ -1,4 +1,8 @@
 #!/bin/sh
+if [ ! -e hex ]; then
+	mkdir hex
+fi
+
 make LIGHTPACK_HW=4
 mv Lightpack_hw4.hex hex/
 make clean LIGHTPACK_HW=4
