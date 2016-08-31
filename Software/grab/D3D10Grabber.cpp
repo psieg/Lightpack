@@ -35,6 +35,7 @@
 #include <QThread>
 #include <QApplication>
 #include <QDesktopWidget>
+#include <QMessageBox>
 #include <D3D10_1.h>
 #include <D3D10.h>
 #include <cstdlib>

@@ -31,7 +31,6 @@
 
 #include "common/DebugOut.hpp"
 #include "calculations.hpp"
-#include "../prismatic/enums.hpp"
 
 struct WinAPIScreenData
 {
