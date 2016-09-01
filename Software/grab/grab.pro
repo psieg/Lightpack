@@ -3,7 +3,6 @@
 # Project created by QtCreator 2013-06-11T16:47:52
 #
 #-------------------------------------------------
-
 DESTDIR = ../lib
 TARGET = grab
 TEMPLATE = lib
