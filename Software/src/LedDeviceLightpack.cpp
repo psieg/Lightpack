@@ -27,10 +27,11 @@
 #include "LedDeviceLightpack.hpp"
 
 #include <algorithm>
-#include <QtDebug>
-#include "debug.h"
-#include "Settings.hpp"
 #include <QApplication>
+#include <QtDebug>
+
+#include "common/DebugOut.hpp"
+#include "Settings.hpp"
 
 using namespace SettingsScope;
 

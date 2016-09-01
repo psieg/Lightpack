@@ -26,41 +26,47 @@
 
 #pragma once
 
-#include "GrabConfigWidget.hpp"
 #include <functional>
+
+#include "GrabConfigWidget.hpp"
+#include "GrabbedArea.hpp"
 
 namespace Ui {
     class GrabWidget;
 }
 
 enum GrabWidgetFeature : int {
-	SyncSettings = 0x1,
-	AllowCoefAndEnableConfig = 0x10,
-	AllowColorCycle = 0x100,
-	DimUntilInteractedWith = 0x1000
+    SyncSettings = 0x1,
+    AllowCoefAndEnableConfig = 0x10,
+    AllowColorCycle = 0x100,
+    DimUntilInteractedWith = 0x1000
 };
 
-class GrabWidget : public QWidget
+class GrabWidget : public QWidget, public GrabbedArea
 {
     Q_OBJECT
 public:
-	GrabWidget(int id, int features = 0x11, QList<GrabWidget*> *fellows = NULL, QWidget *parent = 0);
+    GrabWidget(int id, int features = 0x11, QList<GrabWidget*> *fellows = NULL, QWidget *parent = 0);
     virtual ~GrabWidget();
 
     void saveSizeAndPosition();
 
-    double getCoefRed();
-    double getCoefGreen();
-    double getCoefBlue();
-    bool isAreaEnabled();
+    double getCoefRed() const;
+    double getCoefGreen() const;
+    double getCoefBlue() const;
+    bool isAreaEnabled() const;
     void fillBackgroundWhite();
     void fillBackgroundColored();
+
+    // GrabbedArea methods
+    virtual bool isEnabled() const { return isAreaEnabled(); }
+    virtual QRect geometry() const { return frameGeometry(); }
 
 private:
     void fillBackground(int index);
 
 signals:
-	void resizeOrMoveStarted(int id);
+    void resizeOrMoveStarted(int id);
     void resizeOrMoveCompleted(int id);
     void mouseRightButtonClicked(int selfId);
     void sizeAndPositionChanged(int w, int h, int x, int y);
@@ -83,13 +89,13 @@ private:
     void setTextColor(QColor color);
     void setOpenConfigButtonBackground(const QColor &color);
 
-	QRect resizeAccordingly(QMouseEvent *pe);
-	bool snapEdgeToScreenOrClosestFellow(
-		QRect& newRect,
-		const QRect& screen,
-		std::function<void(QRect&,int)> setter,
-		std::function<int(const QRect&)> getter,
-		std::function<int(const QRect&)> oppositeGetter);
+    QRect resizeAccordingly(QMouseEvent *pe);
+    bool snapEdgeToScreenOrClosestFellow(
+        QRect& newRect,
+        const QRect& screen,
+        std::function<void(QRect&,int)> setter,
+        std::function<int(const QRect&)> getter,
+        std::function<int(const QRect&)> oppositeGetter);
 
 public:
     static const int ColorIndexWhite = 11;
@@ -133,12 +139,12 @@ private:
     GrabConfigWidget *m_configWidget;
 
     QColor m_textColor;
-	QColor m_backgroundColor;
+    QColor m_backgroundColor;
     QString m_selfIdString;
     QString m_widthHeight;
 
-	int m_features;
-	QList<GrabWidget*> *m_fellows;
+    int m_features;
+    QList<GrabWidget*> *m_fellows;
 
 protected:
     virtual void mousePressEvent(QMouseEvent *pe);

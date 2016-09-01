@@ -25,7 +25,7 @@
 
 #include "DDuplGrabber.hpp"
 #include "SessionChangeDetector.hpp"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 
 #ifdef DDUPL_GRAB_SUPPORT
 #include <comdef.h>

@@ -2,7 +2,8 @@
 
 #include <QObject>
 #include <QProcess>
-#include "debug.h"
+
+#include "common/DebugOut.hpp"
 
 class Plugin : public QObject
 {

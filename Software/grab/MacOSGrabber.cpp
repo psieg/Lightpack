@@ -23,15 +23,17 @@
  *
  */
 
-#include <QGuiApplication>
-#include"MacOSGrabber.hpp"
+#include "MacOSGrabber.hpp"
 
 #ifdef MAC_OS_CG_GRAB_SUPPORT
 
-#include <CoreGraphics/CoreGraphics.h>
 #include <ApplicationServices/ApplicationServices.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <QGuiApplication>
+
+#include "GrabbedArea.hpp"
 #include "calculations.hpp"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 
 const uint32_t kMaxDisplaysCount = 10;
 
@@ -58,7 +60,7 @@ void MacOSGrabber::freeScreens()
     _screensWithWidgets.clear();
 }
 
-QList< ScreenInfo > * MacOSGrabber::screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets)
+QList< ScreenInfo > * MacOSGrabber::screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabbedArea *> &grabWidgets)
 {
     CGDirectDisplayID displays[kMaxDisplaysCount];
     uint32_t displayCount;
@@ -71,7 +73,7 @@ QList< ScreenInfo > * MacOSGrabber::screensWithWidgets(QList< ScreenInfo > * res
         for (unsigned int i = 0; i < displayCount; ++i) {
             CGRect cgScreenRect = CGDisplayBounds(displays[i]);
             for (int k = 0; k < grabWidgets.size(); ++k) {
-                QRect rect = grabWidgets[k]->frameGeometry();
+                QRect rect = grabWidgets[k]->geometry();
                 CGPoint widgetCenter = CGPointMake(rect.x() + rect.width() / 2, rect.y() + rect.height() / 2);
                 if (CGRectContainsPoint(cgScreenRect, widgetCenter)) {
                     ScreenInfo screenInfo;
@@ -122,10 +124,6 @@ bool MacOSGrabber::reallocate(const QList<ScreenInfo> &screens)
     const size_t kBytesPerPixel = 4;
     freeScreens();
     for (int i = 0; i < screens.size(); ++i) {
-
-
-        //MacOSScreenData *d = new MacOSScreenData();
-
         int screenid = reinterpret_cast<intptr_t>(screens[i].handle);
 
         qreal pixelRatio = ((QGuiApplication*)QCoreApplication::instance())->devicePixelRatio();
@@ -145,7 +143,6 @@ bool MacOSGrabber::reallocate(const QList<ScreenInfo> &screens)
         grabScreen.imgData = buf;
         grabScreen.imgFormat = BufferFormatArgb;
         grabScreen.screenInfo = screens[i];
-        //grabScreen.associatedData = d;
         _screensWithWidgets.append(grabScreen);
 
     }

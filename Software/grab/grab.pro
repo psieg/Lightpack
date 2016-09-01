@@ -3,9 +3,6 @@
 # Project created by QtCreator 2013-06-11T16:47:52
 #
 #-------------------------------------------------
-
-QT       += widgets
-
 DESTDIR = ../lib
 TARGET = grab
 TEMPLATE = lib
@@ -19,7 +16,6 @@ include(configure-grabbers.prf)
 LIBS += -lprismatik-math
 
 INCLUDEPATH += ./include \
-               ../src \
                ../math/include \
                ..
 
@@ -66,6 +62,7 @@ win32 {
 
 HEADERS += \
     include/calculations.hpp \
+    include/GrabbedArea.hpp \
     include/GrabberBase.hpp \
     include/ColorProvider.hpp \
     include/GrabberContext.hpp \

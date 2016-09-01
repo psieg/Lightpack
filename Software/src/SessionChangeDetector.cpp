@@ -1,5 +1,5 @@
 #include "SessionChangeDetector.hpp"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 #include "LightpackApplication.hpp"
 
 #include <exception>

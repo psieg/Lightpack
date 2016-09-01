@@ -36,18 +36,18 @@
 #include <QApplication>
 #include <QDesktopWidget>
 #include <QMessageBox>
-#include <cstdlib>
-#include <stdio.h>
-#include "calculations.hpp"
-#include "WinUtils.hpp"
-#include "../common/WinDXUtils.hpp"
-#include "../../common/D3D10GrabberDefs.hpp"
-#include "../src/debug.h"
-#include "../libraryinjector/ILibraryInjector.h"
-
-#include "../common/msvcstub.h"
 #include <D3D10_1.h>
 #include <D3D10.h>
+#include <cstdlib>
+#include <stdio.h>
+
+#include "common/DebugOut.hpp"
+#include "common/D3D10GrabberDefs.hpp"
+#include "common/msvcstub.h"
+#include "common/WinDXUtils.hpp"
+#include "calculations.hpp"
+#include "WinUtils.hpp"
+#include "../libraryinjector/ILibraryInjector.h"
 
 #define SIZEOF_ARRAY(a) (sizeof(a)/sizeof(a[0]))
 

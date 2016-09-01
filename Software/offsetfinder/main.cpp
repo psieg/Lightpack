@@ -1,7 +1,6 @@
 #include "windows.h"
-#define HOOKSGRABBER_SYSWOW64_DESC
-#include "../common/D3D10GrabberDefs.hpp"
-#include "../common/WinDXUtils.hpp"
+#include "common/D3D10GrabberDefs.hpp"
+#include "common/WinDXUtils.hpp"
 
 LPCWSTR g_szClassName = L"{B0262869-ADE9-4B0A-A4D7-159A80428536}";
 

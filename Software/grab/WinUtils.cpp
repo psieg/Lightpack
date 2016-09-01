@@ -29,7 +29,7 @@
 #include <tlhelp32.h>
 #include <shlwapi.h>
 
-#include "../src/debug.h"
+#include "common/DebugOut.hpp"
 
 #define SIZEOF_ARRAY(a) (sizeof(a)/sizeof(a[0]))
 

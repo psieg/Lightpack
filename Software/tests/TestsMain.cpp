@@ -1,5 +1,8 @@
 
 #include <QtTest/QtTest>
+#include <iostream>
+
+#include "common/DebugOut.hpp"
 #include "LightpackApiTest.hpp"
 #include "GrabCalculationTest.hpp"
 #include "lightpackmathtest.hpp"
@@ -7,9 +10,6 @@
 #ifdef Q_OS_WIN
 #include "HooksTest.h"
 #endif
-#include "debug.h"
-
-#include <iostream>
 
 using namespace std;
 

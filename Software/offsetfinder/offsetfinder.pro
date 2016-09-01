@@ -12,9 +12,11 @@ LIBS += -ldxguid
 RC_FILE  = ../res/Libs.rc
 
 QMAKE_LIBS_QT_ENTRY =
-DEFINES += NO_QT
+DEFINES += NO_QT HOOKSGRABBER_SYSWOW64_DESC
 
 include(../build-config.prf)
+
+INCLUDEPATH += ../
 
 # The offsetfinder is used to get the x86 offsets when running as x64
 QMAKE_TARGET.arch = x86

@@ -24,14 +24,15 @@
  *
  */
 
+#include "GrabWidget.hpp"
 
 #include <QtGui>
 #include <QtWidgets/QDesktopWidget>
 #include <QTextItem>
-#include "GrabWidget.hpp"
+ 
 #include "ui_GrabWidget.h"
 #include "Settings.hpp"
-#include "debug.h"
+#include "common/DebugOut.hpp"
 
 using namespace SettingsScope;
 
@@ -555,28 +556,28 @@ void GrabWidget::paintEvent(QPaintEvent *)
 }
 
 
-double GrabWidget::getCoefRed()
+double GrabWidget::getCoefRed() const
 {
     DEBUG_HIGH_LEVEL << Q_FUNC_INFO;
 
     return m_coefRed;
 }
 
-double GrabWidget::getCoefGreen()
+double GrabWidget::getCoefGreen() const
 {
     DEBUG_HIGH_LEVEL << Q_FUNC_INFO;
 
     return m_coefGreen;
 }
 
-double GrabWidget::getCoefBlue()
+double GrabWidget::getCoefBlue() const
 {
     DEBUG_HIGH_LEVEL << Q_FUNC_INFO;
 
     return m_coefBlue;
 }
 
-bool GrabWidget::isAreaEnabled()
+bool GrabWidget::isAreaEnabled() const
 {
     DEBUG_HIGH_LEVEL << Q_FUNC_INFO;
 

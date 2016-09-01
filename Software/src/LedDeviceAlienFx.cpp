@@ -37,9 +37,9 @@
 #endif
 
 #include "LedDeviceAlienFx.hpp"
+
+#include "common/DebugOut.hpp"
 #include "Settings.hpp"
-#include <QtDebug>
-#include "debug.h"
 #include "../alienfx/LFX2.h"
 #include <windows.h>
 

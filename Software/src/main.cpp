@@ -28,9 +28,9 @@
 #include <QMetaType>
 #include <iostream>
 
+#include "common/DebugOut.hpp"
 #include "LightpackApplication.hpp"
 #include "Settings.hpp"
-#include "debug.h"
 #include "LogWriter.hpp"
 #include "SettingsWizard.hpp"
 

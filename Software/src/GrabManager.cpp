@@ -28,7 +28,7 @@
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QDesktopWidget>
 
-#include "debug.h"
+#include "common/DebugOut.hpp"
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 #include "GrabWidget.hpp"
@@ -119,6 +119,7 @@ GrabManager::~GrabManager()
     }
 
     m_ledWidgets.clear();
+    m_ledWidgetsToGrabbedArea.clear();
 
     for (int i = 0; i < m_grabbers.size(); i++)
         if (m_grabbers[i]){
@@ -519,7 +520,11 @@ void GrabManager::initGrabbers()
 {
     DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-    m_grabberContext->grabWidgets = &m_ledWidgets;
+    // TODO: remove this ugly hack.
+    for (int i = 0; i < m_ledWidgets.size(); ++i) {
+        m_ledWidgetsToGrabbedArea << m_ledWidgets[i];
+    }
+    m_grabberContext->grabWidgets = &m_ledWidgetsToGrabbedArea;
     m_grabberContext->grabResult = &m_colorsNew;
 
     for (int i = 0; i < Grab::GrabbersCount; i++)
@@ -643,6 +648,7 @@ void GrabManager::initLedWidgets(int numberOfLeds)
     DEBUG_LOW_LEVEL << Q_FUNC_INFO << numberOfLeds;
 	int widgetFlags = SyncSettings | AllowCoefAndEnableConfig | AllowColorCycle;
 
+    if (m_ledWidgets.size() == 0)
     if (m_ledWidgets.size() == 0)
     {
         DEBUG_LOW_LEVEL << Q_FUNC_INFO << "First widget initialization";

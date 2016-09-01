@@ -25,13 +25,16 @@
 
 #pragma once
 
-#include <QSharedPointer>
 #include <QColor>
+#include <QList>
+#include <QRect>
+#include <QScopedPointer>
 #include <QTimer>
-#include "src/GrabWidget.hpp"
-#include "calculations.hpp"
+
+#include "common/BufferFormat.h"
 
 class GrabberContext;
+class GrabbedArea;
 
 enum GrabResult {
     GrabResultOk,
@@ -80,7 +83,7 @@ public:
     /*!
      \param parent standart Qt-specific owner
      \param grabResult \code QList \endcode to write results of grabbing to
-     \param grabWidgets List of GrabWidgets
+     \param grabWidgets List of GrabbedArea
     */
     GrabberBase(QObject * parent, GrabberContext * grabberContext);
     virtual ~GrabberBase() {}
@@ -116,7 +119,7 @@ protected slots:
      * \param grabWidgets
      * \return
      */
-    virtual QList< ScreenInfo > * screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets) = 0;
+    virtual QList< ScreenInfo > * screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabbedArea *> &grabWidgets) = 0;
 
     virtual bool isReallocationNeeded(const QList< ScreenInfo > &grabScreens) const;
 

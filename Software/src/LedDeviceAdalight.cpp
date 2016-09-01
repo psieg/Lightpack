@@ -25,11 +25,13 @@
  */
 
 #include "LedDeviceAdalight.hpp"
+
+#include <stdio.h>
+#include <QtSerialPort/QSerialPortInfo>
+
+#include "common/DebugOut.hpp"
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
-#include "debug.h"
-#include "stdio.h"
-#include <QtSerialPort/QSerialPortInfo>
 
 using namespace SettingsScope;
 

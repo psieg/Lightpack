@@ -11,7 +11,8 @@ CONFIG += staticlib
 
 include(../build-config.prf)
 
-INCLUDEPATH += ./include
+INCLUDEPATH += ./include \
+               ../ \
 
 SOURCES += \
     PrismatikMath.cpp

@@ -24,26 +24,26 @@
  *
  */
 
+#include "SettingsWindow.hpp"
+
 #include <QtAlgorithms>
+#include <QScrollBar>
+#include <QMessageBox>
+#include <QStringBuilder>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QDesktopWidget>
-#include "LightpackApplication.hpp"
 
-#include "SettingsWindow.hpp"
-#include "ui_SettingsWindow.h"
-
-#include "Settings.hpp"
 #include "ColorButton.hpp"
 #include "LedDeviceManager.hpp"
-#include "enums.hpp"
-#include "debug.h"
+#include "LightpackApplication.hpp"
 #include "Plugin.hpp"
+#include "Settings.hpp"
+#include "SettingsDefaults.hpp"
+#include "common/DebugOut.hpp"
+#include "enums.hpp"
 #include "systrayicon/SysTrayIcon.hpp"
-#include <QStringBuilder>
-#include <QScrollBar>
-#include <QMessageBox>
-
+#include "ui_SettingsWindow.h"
 
 using namespace SettingsScope;
 
