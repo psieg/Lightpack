@@ -40,11 +40,7 @@ public slots:
     const QString name() const { return "virtual"; }
     void open();
     void close(){}
-    void setColors(const QList<QRgb> & colors);
     void switchOffLeds();
-    void setRefreshDelay(int /*value*/);
-    void setColorDepth(int /*value*/);
-    void setSmoothSlowdown(int /*value*/);
     void setColorSequence(QString /*value*/);
     void setGamma(double value);
     void setBrightness(int value);
@@ -52,6 +48,8 @@ public slots:
 	int maxLedsCount() { return 255; }
 	int defaultLedsCount() { return 10; }
 
+protected:
+	virtual void setColorsUnsmoothed(const QList<QRgb> & colors);
 
 private:
     void resizeColorsBuffer(int buffSize);

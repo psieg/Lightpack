@@ -43,16 +43,14 @@ public slots:
     const QString name() const { return "lightfx"; }
     void open();
     void close(){};
-    void setColors(const QList<QRgb> & colors);
     void switchOffLeds();
-    void setRefreshDelay(int /*value*/);
-    void setColorDepth(int /*value*/);
-    void setSmoothSlowdown(int /*value*/);
     void setColorSequence(QString /*value*/);
     void requestFirmwareVersion();
 	int maxLedsCount() { return 1; }
 	int defaultLedsCount() { return 1; }
 
+protected:
+	virtual void setColorsUnsmoothed(const QList<QRgb> & colors);
 
 private:
     HINSTANCE m_hLfxLibrary;

@@ -66,7 +66,7 @@ void LedDeviceArdulight::close()
     }
 }
 
-void LedDeviceArdulight::setColors(const QList<QRgb> & colors)
+void LedDeviceArdulight::setColorsUnsmoothed(const QList<QRgb> & colors)
 {
     DEBUG_MID_LEVEL << Q_FUNC_INFO << colors;
 
@@ -154,21 +154,6 @@ void LedDeviceArdulight::switchOffLeds()
     bool ok = writeBuffer(m_writeBuffer);
 
     emit commandCompleted(ok);
-}
-
-void LedDeviceArdulight::setRefreshDelay(int /*value*/)
-{
-    emit commandCompleted(true);
-}
-
-void LedDeviceArdulight::setColorDepth(int /*value*/)
-{
-    emit commandCompleted(true);
-}
-
-void LedDeviceArdulight::setSmoothSlowdown(int /*value*/)
-{
-    emit commandCompleted(true);
 }
 
 void LedDeviceArdulight::setColorSequence(QString value)

@@ -29,6 +29,11 @@
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 
+void AbstractLedDevice::setSmoothSlowdown(int value) {
+	m_softSmoothSteps = value;
+	setColors(m_colorsSaved);
+}
+
 void AbstractLedDevice::setGamma(double value) {
     m_gamma = value;
     setColors(m_colorsSaved);
@@ -55,6 +60,21 @@ void AbstractLedDevice::updateWBAdjustments(const QList<WBAdjustment> &coefs) {
     setColors(m_colorsSaved);
 }
 
+void AbstractLedDevice::setUsbPowerLedDisabled(bool) {
+	//Default implementation: not supported / unused
+	emit commandCompleted(true);
+}
+
+void AbstractLedDevice::setRefreshDelay(int) {
+	//Default implementation: not supported / unused
+	emit commandCompleted(true);
+}
+
+void AbstractLedDevice::setColorDepth(int) {
+	//Default implementation: not supported / unused
+	emit commandCompleted(true);
+}
+
 void AbstractLedDevice::updateDeviceSettings()
 {
     using namespace SettingsScope;
@@ -63,6 +83,7 @@ void AbstractLedDevice::updateDeviceSettings()
     setLuminosityThreshold(Settings::getLuminosityThreshold());
     setMinimumLuminosityThresholdEnabled(Settings::isMinimumLuminosityEnabled());
     updateWBAdjustments(Settings::getLedCoefs());
+	setSmoothSlowdown(Settings::getDeviceSmooth());
 }
 
 /*!
@@ -118,4 +139,49 @@ void AbstractLedDevice::applyColorModifications(const QList<QRgb> &inColors, QLi
 		}
     }
 
+}
+
+void AbstractLedDevice::setColors(const QList<QRgb> & colors) {
+	if (m_softSmoothSteps == 0) {
+		setColorsUnsmoothed(colors);
+	} else {
+		if (m_colorsSaved.size() != colors.size()) {
+			for (int i = 0; i < colors.size(); i++) {
+				m_colorsSaved.append(0);
+			}
+		}
+
+		m_softSmoothIndex = 0;
+		m_colorsSmoothStart = m_colorsSaved;
+		m_colorsSmoothEnd = colors;
+
+		setColorsUnsmoothed(m_colorsSaved);
+
+		if (!m_softSmoothTimer) {
+			m_softSmoothTimer = new QTimer(this);
+			connect(m_softSmoothTimer, SIGNAL(timeout()), this, SLOT(softSmoothTimerTick()));
+			m_softSmoothTimer->setInterval(5);
+		}
+		if (!m_softSmoothTimer->isActive()) {
+			m_softSmoothTimer->start();
+		}
+	}
+}
+
+void AbstractLedDevice::softSmoothTimerTick() {
+	for (int i = 0; i < m_colorsSmoothStart.size(); i++) {
+		QColor start = m_colorsSmoothStart[i];
+		QColor end = m_colorsSmoothEnd[i];
+		m_colorsSaved[i] = qRgb(
+			start.red() + (end.red() - start.red()) * ((float)m_softSmoothIndex) / m_softSmoothSteps,
+			start.green() + (end.green() - start.green()) * ((float)m_softSmoothIndex) / m_softSmoothSteps,
+			start.blue() + (end.blue() - start.blue()) * ((float)m_softSmoothIndex) / m_softSmoothSteps);
+	}
+
+	setColorsUnsmoothed(m_colorsSaved);
+
+	if (m_softSmoothIndex >= m_softSmoothSteps) {
+		m_softSmoothTimer->stop();
+	}
+	m_softSmoothIndex++;
 }

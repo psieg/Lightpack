@@ -52,10 +52,10 @@ public:
 public slots:
     virtual const QString name() const { return "lightpack"; }
     virtual void open();
-    virtual void close();
-    virtual void setColors(const QList<QRgb> & colors);
+	virtual void close();
+	virtual void setColors(const QList<QRgb> & colors);
     virtual void switchOffLeds();
-    virtual void setUsbPowerLedDisabled(bool isDisabled);
+    virtual void setUsbPowerLedDisabled(bool value);
     virtual void setRefreshDelay(int value);
     virtual void setColorDepth(int value);
     virtual void setSmoothSlowdown(int value);
@@ -65,6 +65,9 @@ public slots:
 	virtual int maxLedsCount();
 	virtual int defaultLedsCount() { return maxLedsCount(); }
 	int lightpacksFound() { return m_devices.size(); }
+
+protected:
+	virtual void setColorsUnsmoothed(const QList<QRgb> & colors);
 
 private: 
     bool readDataFromDevice();

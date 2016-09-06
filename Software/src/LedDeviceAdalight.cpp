@@ -65,7 +65,7 @@ void LedDeviceAdalight::close()
     }
 }
 
-void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
+void LedDeviceAdalight::setColorsUnsmoothed(const QList<QRgb> & colors)
 {
     // Save colors for showing changes of the brightness
     m_colorsSaved = colors;
@@ -148,21 +148,6 @@ void LedDeviceAdalight::switchOffLeds()
 
     bool ok = writeBuffer(m_writeBuffer);
     emit commandCompleted(ok);
-}
-
-void LedDeviceAdalight::setRefreshDelay(int /*value*/)
-{
-    emit commandCompleted(true);
-}
-
-void LedDeviceAdalight::setColorDepth(int /*value*/)
-{
-    emit commandCompleted(true);
-}
-
-void LedDeviceAdalight::setSmoothSlowdown(int /*value*/)
-{
-    emit commandCompleted(true);
 }
 
 void LedDeviceAdalight::setColorSequence(QString value)

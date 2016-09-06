@@ -127,6 +127,12 @@ void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
     emit commandCompleted(ok);
 }
 
+void LedDeviceLightpack::setColorsUnsmoothed(const QList<QRgb> & colors) {
+	Q_UNUSED(colors);
+	qCritical("Lightpack has hardware smoothing, this should not be called");
+	throw;
+}
+
 int LedDeviceLightpack::maxLedsCount()
 {
     if (m_devices.size() == 0)

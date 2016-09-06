@@ -38,8 +38,8 @@ class AbstractLedDevice : public QObject
 {
     Q_OBJECT
 public:
-    AbstractLedDevice(QObject * parent) : QObject(parent) {}
-    virtual ~AbstractLedDevice(){}
+	AbstractLedDevice(QObject * parent) : QObject(parent){};
+	virtual ~AbstractLedDevice(){};
 
 signals:
     void openDeviceSuccess(bool isSuccess);
@@ -58,17 +58,17 @@ signals:
 public slots:
     virtual const QString name() const = 0;
     virtual void open() = 0;
-    virtual void close() = 0;
-    virtual void setColors(const QList<QRgb> & colors) = 0;
+	virtual void close() = 0;
+	virtual void setColors(const QList<QRgb> & colors);
     virtual void switchOffLeds() = 0;
-
+	virtual void setUsbPowerLedDisabled(bool);
     /*!
       \obsolete only form compatibility with Lightpack ver.<=5.5 hardware
       PWM timer period.
      \param value in millis
     */
-    virtual void setRefreshDelay(int value) = 0;
-    virtual void setSmoothSlowdown(int value) = 0;
+    virtual void setRefreshDelay(int);
+    virtual void setSmoothSlowdown(int value);
     virtual void setGamma(double value);
     virtual void setBrightness(int value);
     virtual void setColorSequence(QString value) = 0;
@@ -85,10 +85,14 @@ public slots:
       \obsolete only form compatibility with Lightpack ver.<=5.5 hardware
      \param value bits per channel
     */
-    virtual void setColorDepth(int value) = 0;
+	virtual void setColorDepth(int);
 
 protected:
+	virtual void setColorsUnsmoothed(const QList<QRgb> & colors) = 0;
     virtual void applyColorModifications(const QList<QRgb> & inColors, QList<StructRgb> & outColors);
+
+private slots:
+	void softSmoothTimerTick();
 
 protected:
     QString m_colorSequence;
@@ -99,6 +103,11 @@ protected:
 
     QList<WBAdjustment> m_wbAdjustments;
 
-    QList<QRgb> m_colorsSaved;
+	int m_softSmoothIndex;
+	int m_softSmoothSteps;
+	QTimer *m_softSmoothTimer = 0;
+	QList<QRgb> m_colorsSaved;
+	QList<QRgb> m_colorsSmoothStart;
+	QList<QRgb> m_colorsSmoothEnd;
     QList<StructRgb> m_colorsBuffer;
 };

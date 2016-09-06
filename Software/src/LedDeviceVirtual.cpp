@@ -40,7 +40,7 @@ LedDeviceVirtual::LedDeviceVirtual(QObject * parent) : AbstractLedDevice(parent)
     m_brightness = Settings::getDeviceBrightness();
 }
 
-void LedDeviceVirtual::setColors(const QList<QRgb> & colors)
+void LedDeviceVirtual::setColorsUnsmoothed(const QList<QRgb> & colors)
 {
     if(colors.size()> 0)
     {
@@ -71,21 +71,6 @@ void LedDeviceVirtual::switchOffLeds()
         m_colorsSaved << 0;
     }
     emit colorsUpdated(m_colorsSaved);
-    emit commandCompleted(true);
-}
-
-void LedDeviceVirtual::setRefreshDelay(int /*value*/)
-{
-    emit commandCompleted(true);
-}
-
-void LedDeviceVirtual::setColorDepth(int /*value*/)
-{
-    emit commandCompleted(true);
-}
-
-void LedDeviceVirtual::setSmoothSlowdown(int /*value*/)
-{
     emit commandCompleted(true);
 }
 

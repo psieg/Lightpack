@@ -41,16 +41,15 @@ public slots:
     const QString name() const { return "ardulight"; }
     void open();
     void close();
-    void setColors(const QList<QRgb> & /*colors*/);
     void switchOffLeds();
-    void setRefreshDelay(int /*value*/);
-    void setColorDepth(int /*value*/);
-    void setSmoothSlowdown(int /*value*/);
     void setColorSequence(QString value);
     void requestFirmwareVersion();
     void updateDeviceSettings();
 	int maxLedsCount(){ return 255; }
 	virtual int defaultLedsCount() { return 25; }
+
+protected:
+	virtual void setColorsUnsmoothed(const QList<QRgb> & colors);
 
 private:
     bool writeBuffer(const QByteArray & buff);
