@@ -7,7 +7,7 @@ notifications:
 os:
   - osx
   
-osx_image: xcode6.4
+#osx_image: xcode6.4
   
 before_install:
   - brew update
@@ -19,7 +19,6 @@ before_install:
   - qmake -v
 
 script:
-  - export QMAKE_MAC_SDK=macosx10.8
   - cd Software
   - ./update_locales.sh
   - qmake -r
