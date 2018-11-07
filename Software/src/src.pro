@@ -118,34 +118,13 @@ win32 {
             copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) LSS 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcr$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) GEQ 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
-			copy /y \"$${OPENSSL_DIR}\\ssleay32.dll\" .\ $$escape_expand(\r\n)\
-			copy /y \"$${OPENSSL_DIR}\\libeay32.dll\" .\ $$escape_expand(\r\n)
+			#copy /y \"$${OPENSSL_DIR}\\ssleay32.dll\" .\ $$escape_expand(\r\n)\
+			#copy /y \"$${OPENSSL_DIR}\\libeay32.dll\" .\ $$escape_expand(\r\n)
 			} else {
 		warning("unsupported setup - update src.pro to copy dependencies")
     }
 	
-	contains(DEFINES,BASS_SOUND_SUPPORT) {
-		INCLUDEPATH += $${BASS_DIR}/c/ \
-			$${BASSWASAPI_DIR}/c/
-		
-		contains(QMAKE_TARGET.arch, x86_64) {
-			LIBS += -L$${BASS_DIR}/c/x64/ -L$${BASSWASAPI_DIR}/c/x64/
-		} else {
-			LIBS += -L$${BASS_DIR}/c/ -L$${BASSWASAPI_DIR}/c/		
-		}
-		
-		LIBS	+= -lbass -lbasswasapi
-		
-		contains(QMAKE_TARGET.arch, x86_64) {
-			QMAKE_POST_LINK += cd $(TargetDir) $$escape_expand(\r\n)\
-				copy /y \"$${BASS_DIR}\\x64\\bass.dll\" .\ $$escape_expand(\r\n)\
-				copy /y \"$${BASSWASAPI_DIR}\\x64\\basswasapi.dll\" .\
-		} else {
-			QMAKE_POST_LINK += cd $(TargetDir) $$escape_expand(\r\n)\
-				copy /y \"$${BASS_DIR}\\bass.dll\" .\ $$escape_expand(\r\n)\
-				copy /y \"$${BASSWASAPI_DIR}\\basswasapi.dll\" .\	
-		}
-	}
+
 }
 
 unix:!macx{
