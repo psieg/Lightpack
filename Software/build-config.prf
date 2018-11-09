@@ -1,5 +1,10 @@
-include(build-vars.prf.default)
-exists(build-vars.prf):include(build-vars.prf)
+exists(build-vars.prf)
+{
+	include(build-vars.prf)
+else 
+{
+	include(build-vars.prf.default)
+}
 
 #------------------------------------------------------------------------------
 # Parsing configuration
