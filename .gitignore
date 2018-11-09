@@ -57,6 +57,7 @@ debug/
 release/
 Software/dist_windows/content
 Software/lib
+Software/.vs
 *.vcxproj
 *.filters
 *.sln
