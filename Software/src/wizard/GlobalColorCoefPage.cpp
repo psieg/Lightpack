@@ -76,9 +76,9 @@ void GlobalColorCoefPage::initializePage()
 	this->activateWindow();
 
 	if (_isInitFromSettings) {
-		_ui->sbRed->setValue(SettingsScope::Settings::getLedCoefRed(1) * 100);
-		_ui->sbGreen->setValue(SettingsScope::Settings::getLedCoefGreen(1) * 100);
-		_ui->sbBlue->setValue(SettingsScope::Settings::getLedCoefBlue(1) * 100);
+		_ui->sbRed->setValue(SettingsScope::Settings::getLedCoefRed(1) * _ui->sbRed->maximum());
+		_ui->sbGreen->setValue(SettingsScope::Settings::getLedCoefGreen(1) * _ui->sbGreen->maximum());
+		_ui->sbBlue->setValue(SettingsScope::Settings::getLedCoefBlue(1) * _ui->sbBlue->maximum());
 	}
 
 	resetDeviceSettings();
@@ -118,9 +118,9 @@ bool GlobalColorCoefPage::validatePage()
 	for (int id : _transSettings->zonePositions.keys()) {
 		Settings::setLedPosition(id, _transSettings->zonePositions[id]);
 		Settings::setLedSize(id, _transSettings->zoneSizes[id]);
-		Settings::setLedCoefRed(id, _ui->sbRed->value() / 100.0);
-		Settings::setLedCoefGreen(id, _ui->sbGreen->value() / 100.0);
-		Settings::setLedCoefBlue(id, _ui->sbBlue->value() / 100.0);
+		Settings::setLedCoefRed(id, _ui->sbRed->value() / (double)_ui->sbRed->maximum());
+		Settings::setLedCoefGreen(id, _ui->sbGreen->value() / (double)_ui->sbGreen->maximum());
+		Settings::setLedCoefBlue(id, _ui->sbBlue->value() / (double)_ui->sbBlue->maximum());
 	}
 
 	cleanupMonitors();
@@ -138,9 +138,9 @@ void GlobalColorCoefPage::onCoefValueChanged()
 
 	for (int led = 0; led < _transSettings->ledCount; ++led) {
 		WBAdjustment wba;
-		wba.red = _ui->sbRed->value() / 100.0;
-		wba.green = _ui->sbGreen->value() / 100.0;
-		wba.blue = _ui->sbBlue->value() / 100.0;
+		wba.red = _ui->sbRed->value() / (double)_ui->sbRed->maximum();
+		wba.green = _ui->sbGreen->value() / (double)_ui->sbGreen->maximum();
+		wba.blue = _ui->sbBlue->value() / (double)_ui->sbBlue->maximum();
 		adjustments.append(wba);
 	}
 
