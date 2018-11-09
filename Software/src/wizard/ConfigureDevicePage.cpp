@@ -47,10 +47,31 @@ ConfigureDevicePage::ConfigureDevicePage(bool isInitFromSettings, TransientSetti
 
 void ConfigureDevicePage::initializePage()
 {
-	ui->leSerialPortName->setText(SERIAL_PORT_DEFAULT);
 	ui->cbBaudRate->clear();
 	// NOTE: This line emit's signal currentIndex_Changed()
 	ui->cbBaudRate->addItems(Settings::getSupportedSerialPortBaudRates());
+	int currentBaudRate = 0;
+	QString currentSerialPort = NULL;
+	QString currentColorSequence = NULL;
+	if (field("isAdalight").toBool()) {
+		currentBaudRate = Settings::getAdalightSerialPortBaudRate();
+		currentSerialPort = Settings::getAdalightSerialPortName();
+		currentColorSequence = Settings::getColorSequence(SupportedDevices::DeviceTypeAdalight);
+	}
+	else if (field("isArdulight").toBool()) {
+		currentBaudRate = Settings::getArdulightSerialPortBaudRate();
+		currentSerialPort = Settings::getArdulightSerialPortName();
+		currentColorSequence = Settings::getColorSequence(SupportedDevices::DeviceTypeArdulight);
+	}
+	else
+		currentSerialPort = SERIAL_PORT_DEFAULT;
+
+	if (currentBaudRate > 0)
+		ui->cbBaudRate->setCurrentText(QString::number(currentBaudRate));
+	if (currentSerialPort != NULL && currentSerialPort.isEmpty() == false)
+		ui->leSerialPortName->setText(currentSerialPort);
+	if (currentColorSequence != NULL && currentColorSequence.isEmpty() == false)
+		ui->cbColorFormat->setCurrentText(currentColorSequence);
 
 	registerField("serialPort", ui->leSerialPortName);
 	registerField("baudRate", ui->cbBaudRate, "currentText");
