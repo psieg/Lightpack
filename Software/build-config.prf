@@ -1,7 +1,7 @@
 exists(build-vars.prf)
 {
 	include(build-vars.prf)
-else 
+else
 {
 	include(build-vars.prf.default)
 }

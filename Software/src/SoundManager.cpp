@@ -28,10 +28,8 @@
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 #include <QTime>
-#if 0
 #include "bass.h"
 #include "basswasapi.h"
-#endif 
 
 #define MAX_DEVICE_ID 100
 
@@ -39,7 +37,6 @@ using namespace SettingsScope;
 
 SoundManager::SoundManager(int hWnd, QObject *parent) : QObject(parent)
 {
-	#if 0
 	m_hWnd = hWnd;
 
 	m_isEnabled = false;
@@ -48,19 +45,15 @@ SoundManager::SoundManager(int hWnd, QObject *parent) : QObject(parent)
 	initFromSettings();
 
 	connect(&m_timer, SIGNAL(timeout()), this, SLOT(updateColors()));
-	#endif
 }
 
 SoundManager::~SoundManager()
 {
-	#if 0
 	if (m_isEnabled) start(false);
 	if (m_isInited) BASS_Free();
-	#endif
 }
 
 bool SoundManager::init() {
-	#if 0
 	BASS_SetConfig(BASS_CONFIG_UNICODE, true);
 	// initialize "no sound" BASS device
 	if (!BASS_Init(0, 44100, 0, (HWND)m_hWnd, NULL)) {
@@ -71,11 +64,8 @@ bool SoundManager::init() {
 
 	m_isInited = true;
 	return true;
-	#endif 
-	return true;
 }
 
-#if 0
 // WASAPI callback - not doing anything with the data
 DWORD CALLBACK DuffRecording(void *buffer, DWORD length, void *user)
 {
@@ -84,11 +74,9 @@ DWORD CALLBACK DuffRecording(void *buffer, DWORD length, void *user)
 	Q_UNUSED(user);
 	return TRUE; // continue recording
 }
-#endif
 
 void SoundManager::requestDeviceList()
 {
-	#if 0
 	if (!m_isInited)
 	{
 		if (!init()) {
@@ -115,12 +103,10 @@ void SoundManager::requestDeviceList()
 	}
 
 	emit deviceList(devices, recommended);
-	#endif
 }
 
 void SoundManager::start(bool isEnabled)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << isEnabled;
 
 	if (m_isEnabled == isEnabled)
@@ -195,42 +181,34 @@ void SoundManager::start(bool isEnabled)
 		m_generator.start();
 	else
 		m_generator.stop();
-	#endif 
 }
 
 void SoundManager::setDevice(int value)
 {
-	#if 0
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value;
 
 	bool enabled = m_isEnabled;
 	if (enabled) start(false);
 	m_device = value;
 	if (enabled) start(true);
-	#endif 
 }
 
 void SoundManager::setMinColor(QColor color)
 {
-	#if 0
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << color;
 
 	m_minColor = color;
-	#endif
 }
 
 void SoundManager::setMaxColor(QColor color)
 {
-	#if 0
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << color;
 
 	m_maxColor = color;
-	#endif 
 }
 
 void SoundManager::setLiquidMode(bool state)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
 	m_isLiquidMode = state;
 	if (m_isLiquidMode && m_isEnabled)
@@ -240,46 +218,36 @@ void SoundManager::setLiquidMode(bool state)
 		if (m_isEnabled)
 			updateColors();
 	}
-	#endif
 }
 
 void SoundManager::setLiquidModeSpeed(int value)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
 	m_generator.setSpeed(value);
-	#endif 
 }
 
 void SoundManager::setSendDataOnlyIfColorsChanged(bool state)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
 	m_isSendDataOnlyIfColorsChanged = state;
-	#endif 
 }
 
 void SoundManager::setNumberOfLeds(int numberOfLeds)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << numberOfLeds;
 
 	initColors(numberOfLeds);
-	#endif
 }
 
 void SoundManager::settingsProfileChanged(const QString &profileName)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 	Q_UNUSED(profileName)
 	initFromSettings();
-	#endif
 }
 
 void SoundManager::initFromSettings()
 {
-	#if 0
 	m_device = Settings::getSoundVisualizerDevice();
 	m_minColor = Settings::getSoundVisualizerMinColor();
 	m_maxColor = Settings::getSoundVisualizerMaxColor();
@@ -288,20 +256,16 @@ void SoundManager::initFromSettings()
 	m_isSendDataOnlyIfColorsChanged = Settings::isSendDataOnlyIfColorsChanges();
 
 	initColors(Settings::getNumberOfLeds(Settings::getConnectedDevice()));
-	#endif
 }
 
 void SoundManager::reset()
 {
-	#if 0
 	initColors(m_colors.size());
 	m_generator.reset();
-	#endif 
 }
 
 void SoundManager::updateColors()
 {
-	#if 0
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO;
 
 	float fft[1024];
@@ -345,12 +309,10 @@ void SoundManager::updateColors()
 
 	if (changed || m_isSendDataOnlyIfColorsChanged)
 		emit updateLedsColors(m_colors);
-	#endif
 }
 
 void SoundManager::initColors(int numberOfLeds)
 {
-	#if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << numberOfLeds;
 
 	m_colors.clear();
@@ -360,5 +322,4 @@ void SoundManager::initColors(int numberOfLeds)
 		m_colors << 0;
 		m_peaks << 0;
 	}
-	#endif 
 }
