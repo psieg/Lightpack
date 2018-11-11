@@ -35,8 +35,10 @@ SessionChangeDetector::SessionChangeDetector()
 		&GUID_CONSOLE_DISPLAY_STATE,
 		DEVICE_NOTIFY_WINDOW_HANDLE
 	);
-	if (m_powerSettingNotificationHandle == NULL)
+	if (m_powerSettingNotificationHandle == NULL) {
+		WTSUnRegisterSessionNotification(getLightpackApp()->getMainWindowHandle());
 		throw register_exception();
+	}
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Event Filter is set up";
 #endif
 }
