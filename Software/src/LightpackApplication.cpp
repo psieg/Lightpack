@@ -62,7 +62,7 @@ LightpackApplication::LightpackApplication(int &argc, char **argv)
 
 LightpackApplication::~LightpackApplication()
 {
-
+	getLightpackApp()->settingsWnd()->switchOffLeds();
 	m_moodlampManager->start(false);
 	m_grabManager->start(false);
 	m_pluginManager->StopPlugins();
