@@ -9,8 +9,8 @@ os:
   
 before_install:
   - brew update
-  - brew install qt
-  - export QTDIR=$(brew info --json=v1 qt | jq -r '.[0].bottle.stable.cellar + "/" + .[0].name + "/" + .[0].installed[0].version')
+  - brew install qt@5.10
+  - export QTDIR=/usr/local/opt/qt@5.10/
   - export PATH=$PATH:$QTDIR/bin
   - export VERSION=`cat Software/VERSION`
   - qmake -v
