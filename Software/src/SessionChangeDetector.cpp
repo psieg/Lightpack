@@ -29,6 +29,14 @@ SessionChangeDetector::SessionChangeDetector()
 #ifdef Q_OS_WIN
 	if (WTSRegisterSessionNotification(getLightpackApp()->getMainWindowHandle(), NOTIFY_FOR_THIS_SESSION) == FALSE)
 		throw register_exception();
+
+	m_powerSettingNotificationHandle = RegisterPowerSettingNotification(
+		getLightpackApp()->getMainWindowHandle(),
+		&GUID_CONSOLE_DISPLAY_STATE,
+		DEVICE_NOTIFY_WINDOW_HANDLE
+	);
+	if (m_powerSettingNotificationHandle == NULL)
+		throw register_exception();
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Event Filter is set up";
 #endif
 }
@@ -70,6 +78,28 @@ bool SessionChangeDetector::nativeEventFilter(const QByteArray& eventType, void*
 		{
 			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "System is resuming";
 			emit sessionChangeDetected(Resuming);
+		} else if (msg->wParam == PBT_POWERSETTINGCHANGE)
+		{
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Power settings changed";
+			POWERBROADCAST_SETTING* ps = (POWERBROADCAST_SETTING*)msg->lParam;
+			if (ps->PowerSetting == GUID_CONSOLE_DISPLAY_STATE)
+			{
+				if (ps->Data[0] == 0)
+				{
+					DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Display is off";
+					emit sessionChangeDetected(DisplayOff);
+				}
+				else if (ps->Data[0] == 1)
+				{
+					DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Display is on";
+					emit sessionChangeDetected(DisplayOn);
+				}
+				else if (ps->Data[0] == 2)
+				{
+					DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Display is dimmed";
+					emit sessionChangeDetected(DisplayDimmed);
+				}
+			}
 		}
 	}
 #endif
@@ -83,6 +113,7 @@ void SessionChangeDetector::Destroy()
 		m_isDestroyed = true;
 #ifdef Q_OS_WIN
 		WTSUnRegisterSessionNotification(getLightpackApp()->getMainWindowHandle());
+		UnregisterPowerSettingNotification(m_powerSettingNotificationHandle);
 #endif
 	}
 }

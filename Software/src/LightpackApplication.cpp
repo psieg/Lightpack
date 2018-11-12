@@ -357,6 +357,7 @@ void LightpackApplication::onSessionChange(int change)
 			}
 			m_isSessionLocked = false;
 			break;
+		case SessionChangeDetector::SessionChange::DisplayOff:
 		case SessionChangeDetector::SessionChange::Sleeping:
 			if (!m_isSessionLocked)
 				m_isLightsWereOn = m_backlightStatus;
@@ -366,6 +367,7 @@ void LightpackApplication::onSessionChange(int change)
 				getLightpackApp()->settingsWnd()->switchOffLeds();
 			}
 			break;
+		case SessionChangeDetector::SessionChange::DisplayOn:
 		case SessionChangeDetector::SessionChange::Resuming:
 			if (!SettingsScope::Settings::isKeepLightsOnAfterSuspend())
 			{

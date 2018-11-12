@@ -29,6 +29,10 @@
 #include "QObject"
 #include "QAbstractNativeEventFilter"
 
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#endif
+
 class SessionChangeDetector :
 	public QObject,
 	public QAbstractNativeEventFilter
@@ -42,7 +46,10 @@ public:
 		Locking,
 		Unlocking,
 		Sleeping,
-		Resuming
+		Resuming,
+		DisplayOn,
+		DisplayOff,
+		DisplayDimmed
 	};
 
 	SessionChangeDetector();
@@ -58,5 +65,9 @@ private:
 	void Destroy();
 
 	bool m_isDestroyed;
+
+#ifdef Q_OS_WIN
+	HPOWERNOTIFY m_powerSettingNotificationHandle;
+#endif
 };
 #endif
