@@ -62,6 +62,9 @@ public slots:
 	void onGrabAvgColorsEnabledChanged(bool state);
 	void onGrabOverBrightenChanged(int value);
 	void onGrabApplyGammaRampChanged(bool state);
+	void onGrabApplyColorTemperatureChanged(bool state);
+	void onGrabColorTemperatureChanged(int value);
+	void onGrabGammaChanged(double value);
 	void onSendDataOnlyIfColorsEnabledChanged(bool state);
 #ifdef D3D10_GRAB_SUPPORT
 	void onDx1011GrabberEnabledChanged(bool state);
@@ -126,6 +129,9 @@ private:
 	bool m_isGrabbingStarted;
 	int m_overBrighten;
 	bool m_isApplyGammaRamp;
+	bool m_isApplyColorTemperature;
+	double m_gamma;
+	int m_colorTemperature;
 
 	int m_grabCountThisInterval;
 	int m_grabCountLastInterval;

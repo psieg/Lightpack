@@ -198,6 +198,10 @@ void SettingsWindow::connectSignalsSlots()
 	connect(ui->checkBox_GrabIsAvgColors, SIGNAL(toggled(bool)), this, SLOT(onGrabIsAvgColors_toggled(bool)));
 	connect(ui->spinBox_GrabOverBrighten, SIGNAL(valueChanged(int)), this, SLOT(onGrabOverBrighten_valueChanged(int)));
 	connect(ui->checkBox_GrabApplyGammaRamp, SIGNAL(toggled(bool)), this, SLOT(onGrabApplyGammaRamp_toggled(bool)));
+	connect(ui->checkBox_GrabApplyColorTemperature, SIGNAL(toggled(bool)), this, SLOT(onGrabApplyColorTemperature_toggled(bool)));
+	connect(ui->horizontalSlider_GrabColorTemperature, SIGNAL(valueChanged(int)), this, SLOT(onGrabColorTemperature_valueChanged(int)));
+	connect(ui->horizontalSlider_GrabGamma, SIGNAL(valueChanged(int)), this, SLOT(onSliderGrabGamma_valueChanged(int)));
+	connect(ui->doubleSpinBox_GrabGamma, SIGNAL(valueChanged(double)), this, SLOT(onGrabGamma_valueChanged(double)));
 
 	connect(ui->radioButton_GrabWidgetsDontShow, SIGNAL(toggled(bool)), this, SLOT( onDontShowLedWidgets_Toggled(bool)));
 	connect(ui->radioButton_Colored, SIGNAL(toggled(bool)), this, SLOT(onSetColoredLedWidgets(bool)));
@@ -1139,8 +1143,46 @@ void SettingsWindow::onGrabApplyGammaRamp_toggled(bool state)
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
 
 	Settings::setGrabApplyGammaRampEnabled(state);
+	if (state == true && ui->checkBox_GrabApplyColorTemperature->isChecked())
+	{
+		ui->checkBox_GrabApplyColorTemperature->setChecked(false);
+		Settings::setGrabApplyColorTemperatureEnabled(false);
+	}
 }
 
+void SettingsWindow::onGrabApplyColorTemperature_toggled(bool state)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
+
+	Settings::setGrabApplyColorTemperatureEnabled(state);
+	if (state == true && ui->checkBox_GrabApplyGammaRamp->isChecked())
+	{
+		ui->checkBox_GrabApplyGammaRamp->setChecked(false);
+		Settings::setGrabApplyGammaRampEnabled(false);
+	}
+}
+
+void SettingsWindow::onGrabColorTemperature_valueChanged(int value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+
+	Settings::setGrabColorTemperature(value);
+}
+
+void SettingsWindow::onGrabGamma_valueChanged(double value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+
+	Settings::setGrabGamma(value);
+	ui->horizontalSlider_GrabGamma->setValue(floor((value * 100)));
+}
+
+void SettingsWindow::onSliderGrabGamma_valueChanged(int value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+	Settings::setGrabGamma(value / 100.0);
+	ui->doubleSpinBox_GrabGamma->setValue(value / 100.0);
+}
 
 void SettingsWindow::onLuminosityThreshold_valueChanged(int value)
 {
@@ -1686,6 +1728,11 @@ void SettingsWindow::updateUiFromSettings()
 	ui->spinBox_GrabSlowdown->setValue								(Settings::getGrabSlowdown());
 	ui->spinBox_GrabOverBrighten->setValue							(Settings::getGrabOverBrighten());
 	ui->checkBox_GrabApplyGammaRamp->setChecked						(Settings::isGrabApplyGammaRampEnabled());
+	ui->checkBox_GrabApplyColorTemperature->setChecked              (Settings::isGrabApplyColorTemperatureEnabled());
+	ui->spinBox_GrabColorTemperature->setValue                      (Settings::getGrabColorTemperature());
+	ui->horizontalSlider_GrabColorTemperature->setValue             (Settings::getGrabColorTemperature());
+	ui->doubleSpinBox_GrabGamma->setValue                           (Settings::getGrabGamma());
+	ui->horizontalSlider_GrabGamma->setValue                        (Settings::getGrabGamma() * 100);
 	ui->spinBox_LuminosityThreshold->setValue						(Settings::getLuminosityThreshold());
 
 	// Check the selected moodlamp mode (setChecked(false) not working to select another)
@@ -1881,6 +1928,16 @@ void SettingsWindow::on_pushButton_GammaCorrectionHelp_clicked()
 void SettingsWindow::on_pushButton_lumosityThresholdHelp_clicked()
 {
 	showHelpOf(ui->horizontalSlider_LuminosityThreshold);
+}
+
+void SettingsWindow::on_pushButton_grabApplyColorTemperatureHelp_clicked()
+{
+	showHelpOf(ui->checkBox_GrabApplyColorTemperature);
+}
+
+void SettingsWindow::on_pushButton_grabGammaHelp_clicked()
+{
+	showHelpOf(ui->horizontalSlider_GrabGamma);
 }
 
 void SettingsWindow::on_pushButton_grabOverBrightenHelp_clicked()

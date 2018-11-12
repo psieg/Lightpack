@@ -685,6 +685,9 @@ void LightpackApplication::initGrabManager()
 	connect(settings(), SIGNAL(grabAvgColorsEnabledChanged(bool)),				m_grabManager,		SLOT(onGrabAvgColorsEnabledChanged(bool)),				Qt::QueuedConnection);
 	connect(settings(), SIGNAL(grabOverBrightenChanged(int)),					m_grabManager,		SLOT(onGrabOverBrightenChanged(int)),					Qt::QueuedConnection);
 	connect(settings(), SIGNAL(grabApplyGammaRampChanged(bool)),				m_grabManager,		SLOT(onGrabApplyGammaRampChanged(bool)),				Qt::QueuedConnection);
+	connect(settings(), SIGNAL(grabApplyColorTemperatureChanged(bool)),         m_grabManager,      SLOT(onGrabApplyColorTemperatureChanged(bool)),           Qt::QueuedConnection);
+	connect(settings(), SIGNAL(grabColorTemperatureChanged(int)),               m_grabManager,      SLOT(onGrabColorTemperatureChanged(int)),                 Qt::QueuedConnection);
+	connect(settings(), SIGNAL(grabGammaChanged(double)),                       m_grabManager,      SLOT(onGrabGammaChanged(double)),                         Qt::QueuedConnection);
 	connect(settings(), SIGNAL(sendDataOnlyIfColorsChangesChanged(bool)),		m_grabManager,		SLOT(onSendDataOnlyIfColorsEnabledChanged(bool)),		Qt::QueuedConnection);
 #ifdef D3D10_GRAB_SUPPORT
 	connect(settings(), SIGNAL(dx1011GrabberEnabledChanged(bool)),				m_grabManager,		SLOT(onDx1011GrabberEnabledChanged(bool)),				Qt::QueuedConnection);

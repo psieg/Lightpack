@@ -150,6 +150,12 @@ public:
 	static void setGrabOverBrighten(int value);
 	static bool isGrabApplyGammaRampEnabled();
 	static void setGrabApplyGammaRampEnabled(bool value);
+	static bool isGrabApplyColorTemperatureEnabled();
+	static void setGrabApplyColorTemperatureEnabled(bool value);
+	static int getGrabColorTemperature();
+	static void setGrabColorTemperature(int value);
+	static double getGrabGamma();
+	static void setGrabGamma(double gamma);
 	static bool isSendDataOnlyIfColorsChanges();
 	static void setSendDataOnlyIfColorsChanges(bool isEnabled);
 	static int getLuminosityThreshold();
@@ -288,6 +294,9 @@ signals:
 	void grabAvgColorsEnabledChanged(bool isEnabled);
 	void grabOverBrightenChanged(int value);
 	void grabApplyGammaRampChanged(bool isEnabled);
+	void grabApplyColorTemperatureChanged(bool isEnabled);
+	void grabColorTemperatureChanged(int value);
+	void grabGammaChanged(double value);
 	void sendDataOnlyIfColorsChangesChanged(bool isEnabled);
 	void luminosityThresholdChanged(int value);
 	void minimumLuminosityEnabledChanged(bool value);
