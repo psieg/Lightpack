@@ -115,13 +115,18 @@ win32 {
     CONFIG(msvc) {
         QMAKE_POST_LINK = cd $(TargetDir) $$escape_expand(\r\n)\
             $$[QT_INSTALL_BINS]/windeployqt --no-angle --no-svg --no-translations --no-compiler-runtime \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)\
-            copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
+            if $(PlatformToolsetVersion) LEQ 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
+            if $(PlatformToolsetVersion) GTR 140 copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp*.dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) LSS 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcr$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
-            if $(PlatformToolsetVersion) GEQ 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
-			copy /y \"$${OPENSSL_DIR}\\ssleay32.dll\" .\ $$escape_expand(\r\n)\
-			copy /y \"$${OPENSSL_DIR}\\libeay32.dll\" .\ $$escape_expand(\r\n)
-			} else {
-		warning("unsupported setup - update src.pro to copy dependencies")
+            if $(PlatformToolsetVersion) EQU 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
+            if $(PlatformToolsetVersion) GTR 140 copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)
+        !contains(DEFINES, NO_OPENSSL) {
+            QMAKE_POST_LINK += copy /y \"$${OPENSSL_DIR}\\ssleay32.dll\" .\ $$escape_expand(\r\n)\
+                copy /y \"$${OPENSSL_DIR}\\libeay32.dll\" .\ $$escape_expand(\r\n)
+        }
+
+    } else {
+        warning("unsupported setup - update src.pro to copy dependencies")
     }
 	
 	contains(DEFINES,BASS_SOUND_SUPPORT) {

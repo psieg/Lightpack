@@ -6,11 +6,11 @@ notifications:
 
 os:
   - osx
-  
+
 before_install:
   - brew update
-  - brew install qt@5.10
-  - export QTDIR=/usr/local/opt/qt@5.10/
+  - brew install qt5
+  - export QTDIR=/usr/local/opt/qt5
   - export PATH=$PATH:$QTDIR/bin
   - export VERSION=`cat Software/VERSION`
   - qmake -v
