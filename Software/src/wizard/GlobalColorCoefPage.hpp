@@ -51,6 +51,7 @@ protected:
 
 private slots:
 	void onCoefValueChanged();
+	void onColorTemperatureValueChanged();
 
 private:
 	void addMonitor(int id);

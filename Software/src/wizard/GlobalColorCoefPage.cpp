@@ -32,6 +32,7 @@
 #include "AbstractLedDevice.hpp"
 #include "Settings.hpp"
 #include "debug.h"
+#include "PrismatikMath.hpp"
 
 GlobalColorCoefPage::GlobalColorCoefPage(bool isInitFromSettings, TransientSettings *ts, QWidget *parent) :
 	WizardPageUsingDevice(isInitFromSettings, ts, parent),
@@ -41,6 +42,7 @@ GlobalColorCoefPage::GlobalColorCoefPage(bool isInitFromSettings, TransientSetti
 	connect(_ui->sbRed, SIGNAL(valueChanged(int)), this, SLOT(onCoefValueChanged()));
 	connect(_ui->sbGreen, SIGNAL(valueChanged(int)), this, SLOT(onCoefValueChanged()));
 	connect(_ui->sbBlue, SIGNAL(valueChanged(int)), this, SLOT(onCoefValueChanged()));
+	connect(_ui->hsColorTemperature, SIGNAL(valueChanged(int)), this, SLOT(onColorTemperatureValueChanged()));
 }
 
 GlobalColorCoefPage::~GlobalColorCoefPage()
@@ -145,6 +147,14 @@ void GlobalColorCoefPage::onCoefValueChanged()
 	}
 
 	device()->updateWBAdjustments(adjustments);
+}
+
+void GlobalColorCoefPage::onColorTemperatureValueChanged()
+{
+	StructRgb whitePoint = PrismatikMath::whitePoint(_ui->hsColorTemperature->value());
+	_ui->sbRed->setValue(whitePoint.r / 2.55);
+	_ui->sbGreen->setValue(whitePoint.g / 2.55);
+	_ui->sbBlue->setValue(whitePoint.b / 2.55);
 }
 
 void GlobalColorCoefPage::cleanupMonitors()
