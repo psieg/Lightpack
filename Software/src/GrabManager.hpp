@@ -30,6 +30,10 @@
 #include "GrabberBase.hpp"
 #include "enums.hpp"
 
+#ifdef Q_OS_WIN
+namespace NightLightLibrary { class NightLight; };
+#endif
+
 class GrabberContext;
 class TimeEvaluations;
 class D3D10Grabber;
@@ -107,6 +111,12 @@ private:
 
 #ifdef D3D10_GRAB_SUPPORT
 	D3D10Grabber *m_d3d10Grabber;
+#endif
+
+#ifdef Q_OS_WIN
+	std::unique_ptr<NightLightLibrary::NightLight> m_nightLight;
+	void startNightLight();
+	void stopNightLight();
 #endif
 
 	QTimer *m_timerUpdateFPS;
