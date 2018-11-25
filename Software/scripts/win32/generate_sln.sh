@@ -1,5 +1,12 @@
 #!/bin/bash
 # call this from $repo/Software
+echo "================================================="
+echo "If you're using VS2017, run generate_sln.bat from"
+echo "the developer command prompt instead."
+echo "================================================="
+echo ""
+
+
 $QTDIR/bin/qmake -recursive -tp vc Lightpack.pro
 
 # qmake only allows shared linkage of the msvcr* runtime (for reasons acceptable when using Qt in the projects)

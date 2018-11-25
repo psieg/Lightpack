@@ -11,6 +11,8 @@ win32: {
 	
 	# Set this to -Win32 for 32-bit
 	OPENSSL_DIR = "C:\\OpenSSL-Win64\\bin"
+	# Set this to run without openssl. The updatecheck won't work.
+	# DEFINES += NO_OPENSSL
 	
 	# optional: BASS library directory, for sound visualization (http://www.un4seen.com/)
 	DEFINES += BASS_SOUND_SUPPORT
