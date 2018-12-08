@@ -58,6 +58,7 @@ GrabberBase::GrabberBase(QObject *parent, GrabberContext *grabberContext) : QObj
 	if (m_timer && m_timer->isActive())
 		m_timer->stop();
 	m_timer.reset(new QTimer(this));
+	m_timer->setTimerType(Qt::PreciseTimer);
 	connect(m_timer.data(), SIGNAL(timeout()), this, SLOT(grab()));
 }
 
