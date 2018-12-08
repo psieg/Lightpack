@@ -25,7 +25,7 @@
 
 #include "PrismatikMath.hpp"
 #include <algorithm>
-#include <cstdint>
+#include <climits>
 #include "../src/debug.h"
 
 namespace PrismatikMath
@@ -74,9 +74,9 @@ namespace PrismatikMath
 		gamma = 1.0 / gamma; // encoding
 		for (QRgb& color : colors)
 		{
-			quint8 r = ::pow((qRed(color)   * wp.r) / (double)UINT16_MAX, gamma) * UINT8_MAX;
-			quint8 g = ::pow((qGreen(color) * wp.g) / (double)UINT16_MAX, gamma) * UINT8_MAX;
-			quint8 b = ::pow((qBlue(color)  * wp.b) / (double)UINT16_MAX, gamma) * UINT8_MAX;
+			quint8 r = ::pow((qRed(color)   * wp.r) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
+			quint8 g = ::pow((qGreen(color) * wp.g) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
+			quint8 b = ::pow((qBlue(color)  * wp.b) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
 			color = qRgb(r, g, b);
 		}
 	}
