@@ -1066,16 +1066,18 @@ void SettingsWindow::refreshAmbilightEvaluated(double updateResultMs)
 {	
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO << updateResultMs;
 
-	double secs = updateResultMs / 1000;
 	double hz = 0;
 
-	if(secs != 0){
-		hz = 1 / secs;
-	}
+	if (updateResultMs != 0)
+		hz = 1000.0 / updateResultMs; /* ms to hz */
+	
+	double maxHz = 1000.0 / ui->spinBox_GrabSlowdown->value(); // cap with display refresh rate?
 
-	ui->label_GrabFrequency_value->setText(QString::number(hz,'f', 2) /* ms to hz */);
+	QString fpsText = QString::number(hz, 'f', 0) + " / " + QString::number(maxHz, 'f', 0);
 
-	this->labelFPS->setText(tr("FPS: ")+QString::number(hz,'f', 2) );
+	ui->label_GrabFrequency_value->setText(fpsText);
+
+	this->labelFPS->setText(tr("FPS: ") + fpsText);
 }
 
 // ----------------------------------------------------------------------------
@@ -1118,6 +1120,7 @@ void SettingsWindow::onGrabSlowdown_valueChanged(int value)
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
 
 	Settings::setGrabSlowdown(value);
+	refreshAmbilightEvaluated(0);// update max grab rate
 }
 
 void SettingsWindow::onGrabIsAvgColors_toggled(bool state)
