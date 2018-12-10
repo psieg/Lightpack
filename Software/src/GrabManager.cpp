@@ -285,6 +285,24 @@ void GrabManager::onGrabGammaChanged(double gamma)
 	m_gamma = gamma;
 }
 
+void GrabManager::onGrabApplyColorTemperatureChanged(bool state)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
+	m_isApplyColorTemperature = state;
+}
+
+void GrabManager::onGrabColorTemperatureChanged(int value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+	m_colorTemperature = value;
+}
+
+void GrabManager::onGrabGammaChanged(double gamma)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << gamma;
+	m_gamma = gamma;
+}
+
 void GrabManager::onSendDataOnlyIfColorsEnabledChanged(bool state)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;

@@ -35,21 +35,21 @@ handle other devices with Prismatik such as Adalight, Ardulight, or even Alienwa
 
 ### Prismatik Build Instructions for Windows
 #### Prerequisites:
-* [Qt SDK](http://qt-project.org/downloads), you may need to set `%QTDIR%`
-* [Windows SDK](https://msdn.microsoft.com/en-us/windows/desktop/ff851942.aspx) or [Microsoft DirectX SDK](http://www.microsoft.com/en-us/download/details.aspx?id=6812)
-* POSIX shell utilities [MSYS for example](http://www.mingw.org/wiki/MSYS). It may help to have the `PATH` environment variable set for the utilities (Run &rarr; sysdm.cpl &rarr; Advanced &rarr; Environment Variable &rarr; Edit `PATH` system variable (`C:\MinGW\msys\1.0\bin;` for example)
-* optional [any](https://wiki.openssl.org/index.php/Binaries) [OpenSSL binaries](https://slproweb.com/products/Win32OpenSSL.html) to include them in the build. You can skip them if you modify `src.pro`
-* optional [BASS and BASSWASAPI](http://www.un4seen.com/) for the Sound Visualizer. You can skip them in `build-vars.prf`
+* [Qt SDK](http://qt-project.org/downloads), you may need to set `%QTDIR%` (sysdm.cpl &rarr; Advanced &rarr; Environment Variables &rarr; New) to something like `C:\Qt\x.xx.x\msvc_xxxx\`.
+* Visual Studio, [Windows SDK](https://msdn.microsoft.com/en-us/windows/desktop/ff851942.aspx) or [Microsoft DirectX SDK](http://www.microsoft.com/en-us/download/details.aspx?id=6812)
+* optional (if you want to create an installer) POSIX shell utilities [MSYS for example](http://www.mingw.org/wiki/MSYS). 
+* optional [any](https://wiki.openssl.org/index.php/Binaries) [OpenSSL binaries](https://slproweb.com/products/Win32OpenSSL.html) to include them in the setup. If you just want to build, you can skip them in `build-vars.prf` (this will render the update check ineffective).
+* optional [BASS and BASSWASAPI](http://www.un4seen.com/) for the Sound Visualizer. You can skip them in `build-vars.prf`.
 
 #### Build Process:
 1. Go to `<repo>/Software`
 2. Copy and edit `build-vars.prf` according to your machine
 3. Optional: if locales changed: run `update_locales.bat` or `./update_locales.sh` (slow on Windows)
-4. Run `scripts/win32/generate_sln.sh`
+4. Run `scripts/win32/generate_sln.bat` (from the Visual Studio Developer prompt / `vcvarsall.bat`)
 5. Build `Lightpack.sln` with MSBuild / VisualStudio
 
 #### Building an Installer:
-1. Run `scripts/win32/prepare_installer.sh`
+1. Run `scripts/win32/prepare_installer.sh`. (This builds the autoupdater (UpdateElevate), needs the submodule checked out and currently works only with VS2015).
 2. Build `dist_windows/script.iss` (64bit) or `script32.iss` (32bit) with ISCC (the InnoSetup compiler)
 
 ---
