@@ -123,19 +123,19 @@ win32 {
 			} else {
 		warning("unsupported setup - update src.pro to copy dependencies")
     }
-	
+
 	contains(DEFINES,BASS_SOUND_SUPPORT) {
 		INCLUDEPATH += $${BASS_DIR}/c/ \
 			$${BASSWASAPI_DIR}/c/
-		
+
 		contains(QMAKE_TARGET.arch, x86_64) {
 			LIBS += -L$${BASS_DIR}/c/x64/ -L$${BASSWASAPI_DIR}/c/x64/
 		} else {
-			LIBS += -L$${BASS_DIR}/c/ -L$${BASSWASAPI_DIR}/c/		
+			LIBS += -L$${BASS_DIR}/c/ -L$${BASSWASAPI_DIR}/c/
 		}
-		
+
 		LIBS	+= -lbass -lbasswasapi
-		
+
 		contains(QMAKE_TARGET.arch, x86_64) {
 			QMAKE_POST_LINK += cd $(TargetDir) $$escape_expand(\r\n)\
 				copy /y \"$${BASS_DIR}\\x64\\bass.dll\" .\ $$escape_expand(\r\n)\
@@ -143,7 +143,20 @@ win32 {
 		} else {
 			QMAKE_POST_LINK += cd $(TargetDir) $$escape_expand(\r\n)\
 				copy /y \"$${BASS_DIR}\\bass.dll\" .\ $$escape_expand(\r\n)\
-				copy /y \"$${BASSWASAPI_DIR}\\basswasapi.dll\" .\	
+				copy /y \"$${BASSWASAPI_DIR}\\basswasapi.dll\" .\
+		}
+	}
+
+	contains(DEFINES,NIGHTLIGHT_SUPPORT) {
+		contains(QMAKE_TARGET.arch, x86_64) {
+
+			Release:INCLUDEPATH += $${NIGHTLIGHT_DIR}/Release/
+			Release:LIBS += -L$${NIGHTLIGHT_DIR}/Release/
+
+			Debug:INCLUDEPATH += $${NIGHTLIGHT_DIR}/Debug/
+			Debug:LIBS += -L$${NIGHTLIGHT_DIR}/Debug/
+
+			LIBS += -lNightLightLibrary
 		}
 	}
 }
