@@ -31,7 +31,7 @@
 #include "enums.hpp"
 
 #ifdef Q_OS_WIN
-namespace NightLightLibrary { class NightLight; };
+namespace NightLightLibrary { class NightLightWrapper; };
 #endif
 
 class GrabberContext;
@@ -114,7 +114,7 @@ private:
 #endif
 
 #ifdef Q_OS_WIN
-	std::unique_ptr<NightLightLibrary::NightLight> m_nightLight;
+	std::unique_ptr<NightLightLibrary::NightLightWrapper> m_nightLight;
 	void startNightLight();
 	void stopNightLight();
 #endif

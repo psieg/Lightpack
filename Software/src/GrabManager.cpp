@@ -237,7 +237,7 @@ void GrabManager::onGrabApplyGammaRampChanged(bool state)
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
 	m_isApplyGammaRamp = state;
 #ifdef Q_OS_WIN
-	if (m_isApplyGammaRamp && NightLightLibrary::NightLight::isSupported(true))
+	if (m_isApplyGammaRamp && NightLightLibrary::NightLightWrapper::isSupported(true))
 		startNightLight();
 	else
 		stopNightLight();
@@ -249,7 +249,7 @@ void GrabManager::startNightLight()
 {
 	if (m_nightLight)
 		return;
-	m_nightLight = std::make_unique<NightLightLibrary::NightLight>();
+	m_nightLight = std::make_unique<NightLightLibrary::NightLightWrapper>();
 	m_nightLight->startWatching();
 }
 
