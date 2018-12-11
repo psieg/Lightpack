@@ -151,6 +151,13 @@ static const int OverBrightenMin = 0;
 static const int OverBrightenDefault = 0;
 static const int OverBrightenMax = 100;
 static const bool IsApplyGammaRampEnabledDefault = true;
+static const bool IsApplyColorTemperatureEnabledDefault = false;
+static const int ColorTemperatureMin = 1000;
+static const int ColorTemperatureDefault = 6500;
+static const int ColorTemperatureMax = 10000;
+static const double GammaMin = 0.05;
+static const double GammaDefault = 1.2;
+static const double GammaMax = 10.0;
 }
 // [MoodLamp]
 namespace MoodLamp

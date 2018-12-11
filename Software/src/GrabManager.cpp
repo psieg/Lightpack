@@ -237,6 +237,24 @@ void GrabManager::onGrabApplyGammaRampChanged(bool state)
 	m_isApplyGammaRamp = state;
 }
 
+void GrabManager::onGrabApplyColorTemperatureChanged(bool state)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
+	m_isApplyColorTemperature = state;
+}
+
+void GrabManager::onGrabColorTemperatureChanged(int value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+	m_colorTemperature = value;
+}
+
+void GrabManager::onGrabGammaChanged(double gamma)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << gamma;
+	m_gamma = gamma;
+}
+
 void GrabManager::onSendDataOnlyIfColorsEnabledChanged(bool state)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
@@ -285,6 +303,9 @@ void GrabManager::settingsProfileChanged(const QString &profileName)
 	m_avgColorsOnAllLeds = Settings::isGrabAvgColorsEnabled();
 	m_overBrighten = Settings::getGrabOverBrighten();
 	m_isApplyGammaRamp = Settings::isGrabApplyGammaRampEnabled();
+	m_isApplyColorTemperature = Settings::isGrabApplyColorTemperatureEnabled();
+	m_colorTemperature = Settings::getGrabColorTemperature();
+	m_gamma = Settings::getGrabGamma();
 
 	setNumberOfLeds(Settings::getNumberOfLeds(Settings::getConnectedDevice()));
 }
@@ -345,7 +366,7 @@ void GrabManager::handleGrabbedColors()
 	if (m_isPauseGrabWhileResizeOrMoving)
 	{
 		return;
-	}	
+	}
 
 	// Work on a copy
 	m_colorsProcessing = m_colorsNew;
@@ -355,8 +376,12 @@ void GrabManager::handleGrabbedColors()
 	int avgR = 0, avgG = 0, avgB = 0;
 	int countGrabEnabled = 0;
 
+	if (m_isApplyColorTemperature)
+	{
+		PrismatikMath::applyColorTemperature(m_colorsProcessing, m_colorTemperature, m_gamma);
+	}
 #ifdef Q_OS_WIN
-	if (m_isApplyGammaRamp)
+	else if (m_isApplyGammaRamp)
 	{
 		WinUtils::ApplyPrimaryGammaRamp(m_colorsProcessing);
 	}

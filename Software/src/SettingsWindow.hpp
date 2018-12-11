@@ -159,6 +159,10 @@ private slots:
 	void onGrabIsAvgColors_toggled(bool state);
 	void onGrabOverBrighten_valueChanged(int value);
 	void onGrabApplyGammaRamp_toggled(bool state);
+	void onGrabApplyColorTemperature_toggled(bool state);
+	void onGrabColorTemperature_valueChanged(int value);
+	void onGrabGamma_valueChanged(double value);
+	void onSliderGrabGamma_valueChanged(int value);
 	void onLuminosityThreshold_valueChanged(int value);
 	void onMinimumLumosity_toggled(bool value);
 
@@ -203,6 +207,9 @@ private slots:
 	void on_pushButton_GammaCorrectionHelp_clicked();
 
 	void on_pushButton_lumosityThresholdHelp_clicked();
+
+	void on_pushButton_grabApplyColorTemperatureHelp_clicked();
+	void on_pushButton_grabGammaHelp_clicked();
 
 	void on_pushButton_grabOverBrightenHelp_clicked();
 

@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>482</width>
-    <height>626</height>
+    <height>649</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -278,12 +278,22 @@
            </sizepolicy>
           </property>
           <property name="currentIndex">
-           <number>1</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="page">
            <layout class="QVBoxLayout" name="verticalLayout_8">
             <item>
-             <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0,0,0,0">
+             <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0,0,0,0,0,0,0">
+              <item row="3" column="0" colspan="3">
+               <widget class="QCheckBox" name="checkBox_GrabApplyGammaRamp">
+                <property name="text">
+                 <string>Apply screen color modifications (F.lux, redshift)</string>
+                </property>
+                <property name="tristate">
+                 <bool>false</bool>
+                </property>
+               </widget>
+              </item>
               <item row="0" column="2">
                <widget class="QLabel" name="label_GrabFrequency_txt_fps">
                 <property name="text">
@@ -310,6 +320,9 @@
                   <width>50</width>
                   <height>0</height>
                  </size>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                 </property>
                 <property name="minimum">
                  <number>1</number>
@@ -344,51 +357,7 @@
                 </property>
                </widget>
               </item>
-              <item row="5" column="0">
-               <widget class="QSlider" name="horizontalSlider_GrabOverBrighten">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="whatsThis">
-                 <string>&lt;h4&gt;Over-brightening&lt;/h4&gt; To achieve a higher overall brightness, Prismatik will set the LEDs to maximum even if the grabbed color is not at full brightness.</string>
-                </property>
-                <property name="maximum">
-                 <number>100</number>
-                </property>
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="1">
-               <widget class="QSpinBox" name="spinBox_GrabOverBrighten">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="minimumSize">
-                 <size>
-                  <width>50</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="minimum">
-                 <number>0</number>
-                </property>
-                <property name="maximum">
-                 <number>100</number>
-                </property>
-                <property name="value">
-                 <number>0</number>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="2">
+              <item row="8" column="2">
                <widget class="QPushButton" name="pushButton_grabOverBrightenHelp">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -411,13 +380,22 @@
                 </property>
                </widget>
               </item>
-              <item row="1" column="2">
-               <widget class="QLabel" name="label_SlowdownGrab_txt_ms">
-                <property name="text">
-                 <string>ms</string>
+              <item row="8" column="0">
+               <widget class="QSlider" name="horizontalSlider_GrabOverBrighten">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
                 </property>
-                <property name="alignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+                <property name="whatsThis">
+                 <string>&lt;h4&gt;Over-brightening&lt;/h4&gt; To achieve a higher overall brightness, Prismatik will set the LEDs to maximum even if the grabbed color is not at full brightness.</string>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
                 </property>
                </widget>
               </item>
@@ -451,6 +429,9 @@
                 <property name="text">
                  <string notr="true">0</string>
                 </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
                 <property name="margin">
                  <number>3</number>
                 </property>
@@ -459,10 +440,13 @@
                 </property>
                </widget>
               </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="label_11">
+              <item row="1" column="2">
+               <widget class="QLabel" name="label_SlowdownGrab_txt_ms">
                 <property name="text">
-                 <string>Over-brightening:</string>
+                 <string>ms</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
                 </property>
                </widget>
               </item>
@@ -482,10 +466,208 @@
                 </property>
                </widget>
               </item>
-              <item row="3" column="0" colspan="3">
-               <widget class="QCheckBox" name="checkBox_GrabApplyGammaRamp">
+              <item row="5" column="0">
+               <widget class="QSlider" name="horizontalSlider_GrabColorTemperature">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimum">
+                 <number>1000</number>
+                </property>
+                <property name="maximum">
+                 <number>10000</number>
+                </property>
+                <property name="singleStep">
+                 <number>100</number>
+                </property>
+                <property name="pageStep">
+                 <number>1000</number>
+                </property>
+                <property name="value">
+                 <number>6500</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="tickPosition">
+                 <enum>QSlider::NoTicks</enum>
+                </property>
+                <property name="tickInterval">
+                 <number>1000</number>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="QSpinBox" name="spinBox_GrabColorTemperature">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+                <property name="showGroupSeparator" stdset="0">
+                 <bool>false</bool>
+                </property>
+                <property name="suffix">
+                 <string notr="true">K</string>
+                </property>
+                <property name="minimum">
+                 <number>1000</number>
+                </property>
+                <property name="maximum">
+                 <number>10000</number>
+                </property>
+                <property name="singleStep">
+                 <number>100</number>
+                </property>
+                <property name="value">
+                 <number>6500</number>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="0">
+               <widget class="QLabel" name="label_11">
                 <property name="text">
-                 <string>Apply screen color modifications (F.lux, redshift)</string>
+                 <string>Over-brightening:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="8" column="1">
+               <widget class="QSpinBox" name="spinBox_GrabOverBrighten">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>50</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+                <property name="minimum">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+                <property name="value">
+                 <number>0</number>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="QSlider" name="horizontalSlider_GrabGamma">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="whatsThis">
+                 <string>&lt;h4&gt;Color encoding gamma&lt;/h4&gt;
+
+This is the gamma used for encoding the color with the desired &lt;b&gt;color temperature&lt;/b&gt;. Setting to &lt;b&gt;1.0&lt;/b&gt; cancels the effect.
+This is the reciprocal of the &lt;b&gt;device gamma&lt;/b&gt; which is the decoding gamma. They cancel each other if set to same value.</string>
+                </property>
+                <property name="minimum">
+                 <number>5</number>
+                </property>
+                <property name="maximum">
+                 <number>1000</number>
+                </property>
+                <property name="singleStep">
+                 <number>10</number>
+                </property>
+                <property name="pageStep">
+                 <number>100</number>
+                </property>
+                <property name="value">
+                 <number>220</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
+               <widget class="QDoubleSpinBox" name="doubleSpinBox_GrabGamma">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+                <property name="minimum">
+                 <double>0.050000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>10.000000000000000</double>
+                </property>
+                <property name="singleStep">
+                 <double>0.100000000000000</double>
+                </property>
+                <property name="value">
+                 <double>1.200000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0" colspan="2">
+               <widget class="QCheckBox" name="checkBox_GrabApplyColorTemperature">
+                <property name="whatsThis">
+                 <string>&lt;h4&gt;Color temperature &amp;amp; gamma&lt;/h4&gt;
+
+Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...</string>
+                </property>
+                <property name="text">
+                 <string>Apply color temperature and gamma</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="2">
+               <widget class="QPushButton" name="pushButton_grabGammaHelp">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">margin: 0px;</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/LightpackResources.qrc">
+                  <normaloff>:/icons/help.png</normaloff>:/icons/help.png</iconset>
+                </property>
+                <property name="flat">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="2">
+               <widget class="QPushButton" name="pushButton_grabApplyColorTemperatureHelp">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">margin:0px;</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/LightpackResources.qrc">
+                  <normaloff>:/icons/help.png</normaloff>:/icons/help.png</iconset>
+                </property>
+                <property name="flat">
+                 <bool>true</bool>
                 </property>
                </widget>
               </item>
@@ -987,6 +1169,9 @@
                <width>50</width>
                <height>0</height>
               </size>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
              </property>
              <property name="minimum">
               <number>0</number>
@@ -3051,6 +3236,102 @@
     <hint type="destinationlabel">
      <x>385</x>
      <y>196</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>horizontalSlider_GrabColorTemperature</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spinBox_GrabColorTemperature</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>253</x>
+     <y>223</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>381</x>
+     <y>223</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>spinBox_GrabColorTemperature</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>horizontalSlider_GrabColorTemperature</receiver>
+   <slot>setValue(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>381</x>
+     <y>223</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>253</x>
+     <y>223</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_GrabApplyColorTemperature</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>horizontalSlider_GrabColorTemperature</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>286</x>
+     <y>198</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>253</x>
+     <y>223</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_GrabApplyColorTemperature</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>horizontalSlider_GrabGamma</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>286</x>
+     <y>198</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>253</x>
+     <y>251</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_GrabApplyColorTemperature</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>spinBox_GrabColorTemperature</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>286</x>
+     <y>198</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>381</x>
+     <y>223</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBox_GrabApplyColorTemperature</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>doubleSpinBox_GrabGamma</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>286</x>
+     <y>198</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>381</x>
+     <y>251</y>
     </hint>
    </hints>
   </connection>

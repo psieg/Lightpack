@@ -156,6 +156,9 @@ static const QString IsMinimumLuminosityEnabled = "Grab/IsMinimumLuminosityEnabl
 static const QString IsDx1011GrabberEnabled = "Grab/IsDX1011GrabberEnabled";
 static const QString IsDx9GrabbingEnabled = "Grab/IsDX9GrabbingEnabled";
 static const QString IsApplyGammaRampEnabled = "Grab/IsApplyGammaRampEnabled";
+static const QString IsApplyColorTemperatureEnabled = "Grab/IsApplyColorTemperatureEnabled";
+static const QString ColorTemperature = "Grab/ColorTemperature";
+static const QString Gamma = "Grab/Gamma";
 }
 // [MoodLamp]
 namespace MoodLamp
@@ -1002,6 +1005,37 @@ void Settings::setGrabApplyGammaRampEnabled(bool value)
 	m_this->grabApplyGammaRampChanged(value);
 }
 
+bool Settings::isGrabApplyColorTemperatureEnabled()
+{
+	return value(Profile::Key::Grab::IsApplyColorTemperatureEnabled).toBool();
+}
+void Settings::setGrabApplyColorTemperatureEnabled(bool value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+	setValue(Profile::Key::Grab::IsApplyColorTemperatureEnabled, value);
+	m_this->grabApplyColorTemperatureChanged(value);
+}
+int Settings::getGrabColorTemperature()
+{
+	return value(Profile::Key::Grab::ColorTemperature).toInt();
+}
+void Settings::setGrabColorTemperature(int value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+	setValue(Profile::Key::Grab::ColorTemperature, value);
+	m_this->grabColorTemperatureChanged(value);
+}
+double Settings::getGrabGamma()
+{
+	return value(Profile::Key::Grab::Gamma).toDouble();
+}
+void Settings::setGrabGamma(double gamma)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+	setValue(Profile::Key::Grab::Gamma, gamma);
+	m_this->grabGammaChanged(gamma);
+}
+
 bool Settings::isSendDataOnlyIfColorsChanges()
 {
 	return value(Profile::Key::Grab::IsSendDataOnlyIfColorsChanges).toBool();
@@ -1663,6 +1697,9 @@ void Settings::initCurrentProfile(bool isResetDefault)
 	setNewOption(Profile::Key::Grab::IsDx1011GrabberEnabled,		Profile::Grab::IsDx1011GrabberEnabledDefault, isResetDefault);
 	setNewOption(Profile::Key::Grab::IsDx9GrabbingEnabled,			Profile::Grab::IsDx9GrabbingEnabledDefault, isResetDefault);
 	setNewOption(Profile::Key::Grab::IsApplyGammaRampEnabled,		Profile::Grab::IsApplyGammaRampEnabledDefault, isResetDefault);
+	setNewOption(Profile::Key::Grab::IsApplyColorTemperatureEnabled,Profile::Grab::IsApplyColorTemperatureEnabledDefault, isResetDefault);
+	setNewOption(Profile::Key::Grab::ColorTemperature,              Profile::Grab::ColorTemperatureDefault, isResetDefault);
+	setNewOption(Profile::Key::Grab::Gamma,                         Profile::Grab::GammaDefault, isResetDefault);
 	// [MoodLamp]
 	setNewOption(Profile::Key::MoodLamp::IsLiquidMode,				Profile::MoodLamp::IsLiquidModeDefault, isResetDefault);
 	setNewOption(Profile::Key::MoodLamp::Color,						Profile::MoodLamp::ColorDefault, isResetDefault);
