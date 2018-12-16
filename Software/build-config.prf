@@ -8,12 +8,6 @@ exists(build-vars.prf) {
 # Parsing configuration
 #------------------------------------------------------------------------------
 win32: {
-    # DirectX SDK directory
-    _DIRECTX_SDK_DIR = $$(DIRECTX_SDK_DIR)
-    !isEmpty(_DIRECTX_SDK_DIR) {
-        DIRECTX_SDK_DIR = $$_DIRECTX_SDK_DIR
-    }
-
     # Target architecture
     QMAKE_TARGET.arch = $$TARGET_ARCH
     _TARGET_ARCH = $$(TARGET_ARCH)

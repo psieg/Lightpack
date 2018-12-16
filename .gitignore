@@ -65,3 +65,4 @@ Software/.vs
 *.sdf
 *.opensdf
 vc*.pdb
+Software/.qmake.stash
