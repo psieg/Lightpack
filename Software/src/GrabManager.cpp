@@ -432,7 +432,7 @@ void GrabManager::handleGrabbedColors()
 	else if (m_isApplyGammaRamp)
 	{
 #ifdef NIGHTLIGHT_SUPPORT
-		if (m_nightLight && (m_nightLight->isEnabled() || m_nightLight->isRunning())) {
+		if (m_nightLight) {
 			PrismatikMath::applyColorTemperature(m_colorsProcessing,
 				m_nightLight->getSmoothenedColorTemperature(), // CAVEAT: depends on grabbing framerate
 				SettingsScope::Profile::Grab::GammaDefault); // TODO: actual setting?
