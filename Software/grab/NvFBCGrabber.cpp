@@ -299,7 +299,7 @@ GrabResult NvFBCGrabber::grabScreens()
 		NVFBC_TOSYS_GRAB_FRAME_PARAMS fbcSysGrabParams;
 		memset(&fbcSysGrabParams, 0, sizeof(fbcSysGrabParams));
 		fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
-		fbcSysGrabParams.dwFlags = NVFBC_TOSYS_NOFLAGS;
+		fbcSysGrabParams.dwFlags = NVFBC_TOSYS_NOWAIT;
 		fbcSysGrabParams.dwTargetWidth = screen.screenInfo.rect.width() >> DownscaleMipLevel;
 		fbcSysGrabParams.dwTargetHeight = screen.screenInfo.rect.height() >> DownscaleMipLevel;
 		fbcSysGrabParams.eGMode = NVFBC_TOSYS_SOURCEMODE_SCALE;

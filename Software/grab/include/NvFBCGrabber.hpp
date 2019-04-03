@@ -32,12 +32,11 @@
 #endif
 
 #include <windows.h>
+#include <d3d9.h>
 
 #include "GrabberBase.hpp"
 #include "NvFBC/NvFBC.h"
 #include "NvFBC/NvFBCToSys.h"
-
-#include <d3d9.h>
 
 class NvFBCGrabber : public GrabberBase
 {
