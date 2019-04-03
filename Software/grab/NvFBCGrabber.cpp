@@ -34,9 +34,10 @@ namespace {
 	// 0 = /1 (no scaling)
 	// 1 = /2
 	// 2 = /4
-	// 3 = /8 (best value for now)
+	// 3 = /8
+	// 4 = /16
 	// 4+ seems to be counter-productive
-	const uint8_t DownscaleMipLevel = 3;
+	const uint8_t DownscaleMipLevel = 4;
 
 	// Secret password that enables NvFBC for GeForce cards
 	int Magic[] = { 0x0D7BC620, 0x4C17E142, 0x5E6B5997, 0x4B5A855B };
