@@ -72,6 +72,7 @@ enum GrabberType {
 	GrabberTypeMacCoreGraphics,
 	GrabberTypeMacAVFoundation,
 	GrabberTypeDDupl,
+	GrabberTypeNvFBC,
 
 	GrabbersCount,
 

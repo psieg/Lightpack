@@ -40,6 +40,7 @@
 #include "MacOSCGGrabber.hpp"
 #include "MacOSAVGrabber.h"
 #include "D3D10Grabber.hpp"
+#include "NvFBCGrabber.hpp"
 #include "GrabManager.hpp"
 #include "BlueLightReduction.hpp"
 #ifdef Q_OS_WIN
@@ -598,6 +599,10 @@ void GrabManager::initGrabbers()
 	DDuplGrabber* dDuplGrabber = new DDuplGrabber(NULL, m_grabberContext);
 	m_grabbers[Grab::GrabberTypeDDupl] = initGrabber(dDuplGrabber);
 	connect(this, SIGNAL(onSessionChange(int)), dDuplGrabber, SLOT(onSessionChange(int)));
+#endif
+
+#ifdef NVFBC_GRAB_SUPPORT
+	m_grabbers[Grab::GrabberTypeNvFBC] = initGrabber(new NvFBCGrabber(NULL, m_grabberContext));
 #endif
 
 #ifdef X11_GRAB_SUPPORT

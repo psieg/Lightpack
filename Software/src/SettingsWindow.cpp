@@ -276,6 +276,9 @@ void SettingsWindow::connectSignalsSlots()
 #ifdef DDUPL_GRAB_SUPPORT
 	connect(ui->radioButton_GrabDDupl, SIGNAL(toggled(bool)), this, SLOT(onGrabberChanged()));
 #endif
+#ifdef NVFBC_GRAB_SUPPORT
+	connect(ui->radioButton_GrabNvFBC, SIGNAL(toggled(bool)), this, SLOT(onGrabberChanged()));
+#endif
 #ifdef X11_GRAB_SUPPORT
 	connect(ui->radioButton_GrabX11, SIGNAL(toggled(bool)), this, SLOT(onGrabberChanged()));
 #endif
@@ -815,6 +818,9 @@ void SettingsWindow::initGrabbersRadioButtonsVisibility()
 #endif
 #ifndef DDUPL_GRAB_SUPPORT
 	ui->radioButton_GrabDDupl->setVisible(false);
+#endif
+#ifndef NVFBC_GRAB_SUPPORT
+	ui->radioButton_GrabNvFBC->setVisible(false);
 #endif
 #ifndef D3D10_GRAB_SUPPORT
 	ui->checkBox_EnableDx1011Capture->setVisible(false);
@@ -1885,6 +1891,11 @@ void SettingsWindow::updateUiFromSettings()
 		ui->radioButton_GrabDDupl->setChecked(true);
 		break;
 #endif
+#ifdef NVFBC_GRAB_SUPPORT
+	case Grab::GrabberTypeNvFBC:
+		ui->radioButton_GrabNvFBC->setChecked(true);
+		break;
+#endif
 #ifdef X11_GRAB_SUPPORT
 	case Grab::GrabberTypeX11:
 		ui->radioButton_GrabX11->setChecked(true);
@@ -1932,6 +1943,11 @@ Grab::GrabberType SettingsWindow::getSelectedGrabberType()
 #ifdef DDUPL_GRAB_SUPPORT
 	if (ui->radioButton_GrabDDupl->isChecked()) {
 		return Grab::GrabberTypeDDupl;
+	}
+#endif
+#ifdef NVFBC_GRAB_SUPPORT
+	if (ui->radioButton_GrabNvFBC->isChecked()) {
+		return Grab::GrabberTypeNvFBC;
 	}
 #endif
 #ifdef MAC_OS_AV_GRAB_SUPPORT
