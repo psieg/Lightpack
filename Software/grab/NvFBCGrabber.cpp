@@ -45,19 +45,6 @@ namespace {
 	const UINT BytesPerPixel = 4;
 }
 
-struct NvFBCScreenData
-{
-	NvFBCScreenData(NvFBCToSys* _nv_fbc_to_sys, NvFBCFrameGrabInfo* _frame_grab_info, unsigned char* _framebuffer)
-		: nv_fbc_to_sys(_nv_fbc_to_sys),
-		frame_grab_info(_frame_grab_info),
-		framebuffer(_framebuffer)
-	{}
-
-	NvFBCToSys* nv_fbc_to_sys;
-	NvFBCFrameGrabInfo* frame_grab_info;
-	unsigned char* framebuffer;
-};
-
 NvFBCGrabber::NvFBCGrabber(QObject* parent, GrabberContext* context)
 	: GrabberBase(parent, context),
 	m_admin_message_shown(FALSE),
@@ -99,13 +86,11 @@ bool NvFBCGrabber::init()
 void NvFBCGrabber::freeScreens()
 {
 	for (GrabbedScreen& screen : _screensWithWidgets) {
-		NvFBCScreenData* data = (NvFBCScreenData*) screen.associatedData;
+		NvFBCToSys* fbc_to_sys = (NvFBCToSys*) screen.associatedData;
 
-		if (data->nv_fbc_to_sys)
-			data->nv_fbc_to_sys->NvFBCToSysRelease();
-		data->nv_fbc_to_sys = NULL;
-
-		delete data;
+		if (fbc_to_sys)
+			fbc_to_sys->NvFBCToSysRelease();
+		fbc_to_sys = NULL;
 
 		if (screen.imgData != NULL) {
 			free((void*) screen.imgData);
@@ -240,41 +225,36 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& screens)
 			error = TRUE;
 			break;
 		}
-		NvFBCToSys* nv_fbc_to_sys = (NvFBCToSys*) createParams.pNvFBC;
 
-		// Setup the NvFBCToSys object which captures a frame in the framebuffer
-		unsigned char* framebuffer = NULL;
+		// Setup grabScreen data
+		NvFBCToSys* fbc_to_sys = (NvFBCToSys*) createParams.pNvFBC;
+		size_t pitch = ((size_t) screen.rect.width() >> DownscaleMipLevel) * BytesPerPixel;
 
+		GrabbedScreen grabScreen;
+		memset(&grabScreen, 0, sizeof(grabScreen));
+		grabScreen.screenInfo = screen;
+		grabScreen.associatedData = fbc_to_sys;
+		grabScreen.imgDataSize = (screen.rect.height() >> DownscaleMipLevel) * pitch;
+		grabScreen.imgFormat = BufferFormatArgb;
+		grabScreen.scale = 1.0 / (1 << DownscaleMipLevel);
+		grabScreen.bytesPerRow = pitch;
+
+		// Setup the NvFBCToSys object which allocates the framebuffer and which lets grabScreen.imgData point to it
 		NVFBC_TOSYS_SETUP_PARAMS fbcSysSetupParams;
 		memset(&fbcSysSetupParams, 0, sizeof(fbcSysSetupParams));
 		fbcSysSetupParams.dwVersion = NVFBC_TOSYS_SETUP_PARAMS_VER;
 		fbcSysSetupParams.eMode = NVFBC_TOSYS_ARGB;
 		fbcSysSetupParams.bWithHWCursor = FALSE;
 		fbcSysSetupParams.bDiffMap = FALSE;
-		fbcSysSetupParams.ppBuffer = (void **) &framebuffer;
+		fbcSysSetupParams.ppBuffer = (void**) &grabScreen.imgData;
 		fbcSysSetupParams.ppDiffMap = NULL;
-		res = nv_fbc_to_sys->NvFBCToSysSetUp(&fbcSysSetupParams);
+		res = fbc_to_sys->NvFBCToSysSetUp(&fbcSysSetupParams);
 
 		if (res != NVFBC_SUCCESS) {
 			qCritical(Q_FUNC_INFO " Error setting up NvFBCToSys: %d", res);
 			error = TRUE;
 			break;
 		}
-
-		// Set the data associated with this screen and allocate the buffer where we copy the framebuffer
-		NvFBCScreenData* data = new NvFBCScreenData(nv_fbc_to_sys, NULL, framebuffer);
-		size_t pitch = ((size_t) screen.rect.width() >> DownscaleMipLevel) * BytesPerPixel;
-
-		GrabbedScreen grabScreen;
-		memset(&grabScreen, 0, sizeof(grabScreen));
-		grabScreen.screenInfo = screen;
-		grabScreen.associatedData = data;
-		grabScreen.imgDataSize = (screen.rect.height() >> DownscaleMipLevel) * pitch;
-		grabScreen.imgFormat = BufferFormatArgb;
-		grabScreen.scale = 1.0 / (1 << DownscaleMipLevel);
-		grabScreen.bytesPerRow = pitch;
-		grabScreen.imgData = (unsigned char*) malloc(grabScreen.imgDataSize);
-
 		_screensWithWidgets.append(grabScreen);
 	}
 	pd3d9->Release();
@@ -291,9 +271,8 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& screens)
 GrabResult NvFBCGrabber::grabScreens()
 {
 	for (GrabbedScreen& screen : _screensWithWidgets) {
-		NvFBCScreenData* data = (NvFBCScreenData*) screen.associatedData;
-
-		// Grab one frame from a monitor into data->framebuffer
+		// Grab one frame from a monitor into screen.imgData
+		NvFBCToSys* fbc_to_sys = (NvFBCToSys*) screen.associatedData;
 		NvFBCFrameGrabInfo frame_grab_info;
 
 		NVFBC_TOSYS_GRAB_FRAME_PARAMS fbcSysGrabParams;
@@ -304,23 +283,14 @@ GrabResult NvFBCGrabber::grabScreens()
 		fbcSysGrabParams.dwTargetHeight = screen.screenInfo.rect.height() >> DownscaleMipLevel;
 		fbcSysGrabParams.eGMode = NVFBC_TOSYS_SOURCEMODE_SCALE;
 		fbcSysGrabParams.pNvFBCFrameGrabInfo = &frame_grab_info;
-		NVFBCRESULT res = data->nv_fbc_to_sys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
+		NVFBCRESULT res = fbc_to_sys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
 
 		if (res != NVFBC_SUCCESS) {
 			qCritical(Q_FUNC_INFO " Error grabbing frame with NvFBC: %d", res);
-			return GrabResultError;
-		}
-		data->frame_grab_info = &frame_grab_info;
-
-		// Copy data->framebuffer to screen.imgData
-		if (screen.imgData != NULL) {
-			memcpy((void*) screen.imgData, data->framebuffer, screen.imgDataSize);
-		} else {
-			qCritical(Q_FUNC_INFO " Failed to allocate memory to copy the framebuffer!");
 			return GrabResultError;
 		}
 	}
 	return GrabResultOk;
 }
 
-#endif // WINAPI_GRAB_SUPPORT
+#endif // NVFBC_GRAB_SUPPORT
