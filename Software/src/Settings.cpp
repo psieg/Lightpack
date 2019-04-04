@@ -160,6 +160,7 @@ static const QString IsApplyBlueLightReductionEnabled = "Grab/IsApplyGammaRampEn
 static const QString IsApplyColorTemperatureEnabled = "Grab/IsApplyColorTemperatureEnabled";
 static const QString ColorTemperature = "Grab/ColorTemperature";
 static const QString Gamma = "Grab/Gamma";
+static const QString DownscaleFactor = "Grab/DownscaleFactor";
 }
 // [MoodLamp]
 namespace MoodLamp
@@ -1160,6 +1161,18 @@ void Settings::setDeviceGamma(double gamma)
 	m_this->deviceGammaChanged(gamma);
 }
 
+int Settings::getDownscaleFactor()
+{
+	return getValidDownscaleFactor(value(Profile::Key::Grab::DownscaleFactor).toInt());
+}
+
+void Settings::setDownscaleFactor(int factor)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+	setValue(Profile::Key::Grab::DownscaleFactor, getValidDownscaleFactor(factor));
+	m_this->downscaleFactorChanged(factor);
+}
+
 Grab::GrabberType Settings::getGrabberType()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
@@ -1622,6 +1635,15 @@ double Settings::getValidDeviceGamma(double value)
 	return value;
 }
 
+int Settings::getValidDownscaleFactor(int value)
+{
+	if (value < Profile::Grab::DownscaleFactorMin)
+		value = Profile::Grab::DownscaleFactorMin;
+	else if (value > Profile::Grab::DownscaleFactorMax)
+		value = Profile::Grab::DownscaleFactorMax;
+	return value;
+}
+
 int Settings::getValidGrabSlowdown(int value)
 {
 	if (value < Profile::Grab::SlowdownMin)
@@ -1762,6 +1784,7 @@ void Settings::initCurrentProfile(bool isResetDefault)
 	setNewOption(Profile::Key::Grab::IsApplyColorTemperatureEnabled,Profile::Grab::IsApplyColorTemperatureEnabledDefault, isResetDefault);
 	setNewOption(Profile::Key::Grab::ColorTemperature,              Profile::Grab::ColorTemperatureDefault, isResetDefault);
 	setNewOption(Profile::Key::Grab::Gamma,                         Profile::Grab::GammaDefault, isResetDefault);
+	setNewOption(Profile::Key::Grab::DownscaleFactor,               Profile::Grab::DownscaleFactorDefault, isResetDefault);
 	// [MoodLamp]
 	setNewOption(Profile::Key::MoodLamp::IsLiquidMode,				Profile::MoodLamp::IsLiquidModeDefault, isResetDefault);
 	setNewOption(Profile::Key::MoodLamp::Color,						Profile::MoodLamp::ColorDefault, isResetDefault);

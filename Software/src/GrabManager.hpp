@@ -49,6 +49,7 @@ signals:
 	void ambilightTimeOfUpdatingColors(double ms);
 	void changeScreen();
 	void onSessionChange(int change);
+	void changeDownscaleFactor(int change);
 
 public:
 
@@ -67,6 +68,7 @@ public slots:
 	void onGrabApplyColorTemperatureChanged(bool state);
 	void onGrabColorTemperatureChanged(int value);
 	void onGrabGammaChanged(double value);
+	void onDownscaleFactorChange(int change);
 	void onSendDataOnlyIfColorsEnabledChanged(bool state);
 #ifdef D3D10_GRAB_SUPPORT
 	void onDx1011GrabberEnabledChanged(bool state);

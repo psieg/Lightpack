@@ -165,6 +165,9 @@ static const int ColorTemperatureMax = 10000;
 static const double GammaMin = 0.05;
 static const double GammaDefault = 1.2;
 static const double GammaMax = 10.0;
+static const int DownscaleFactorMin = 0;
+static const int DownscaleFactorDefault = 3;
+static const int DownscaleFactorMax = 4;
 }
 // [MoodLamp]
 namespace MoodLamp

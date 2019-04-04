@@ -30,24 +30,9 @@
 
 #ifdef NVFBC_GRAB_SUPPORT
 
-namespace {
-	// 0 = /1 (no scaling)
-	// 1 = /2
-	// 2 = /4
-	// 3 = /8
-	// 4 = /16
-	// 4+ seems to be counter-productive
-	const uint8_t DownscaleMipLevel = 4;
-
-	// Secret password that enables NvFBC for GeForce cards
-	int Magic[] = { 0x0D7BC620, 0x4C17E142, 0x5E6B5997, 0x4B5A855B };
-
-	// ARGB format has 4 bytes per pixel
-	const UINT BytesPerPixel = 4;
-}
-
 NvFBCGrabber::NvFBCGrabber(QObject* parent, GrabberContext* context)
 	: GrabberBase(parent, context),
+	m_downscale_factor(0),
 	m_reallocation_needed(TRUE),
 	m_admin_message_shown(FALSE),
 	m_nvfbcDll(NULL),
@@ -63,6 +48,15 @@ NvFBCGrabber::~NvFBCGrabber()
 
 	if (m_nvfbcDll)
 		FreeLibrary(m_nvfbcDll);
+}
+
+void NvFBCGrabber::onDownscaleFactorChange(int change)
+{
+	if ((int) m_downscale_factor != change) {
+		m_reallocation_needed = TRUE;
+		m_downscale_factor = change;
+	}
+	
 }
 
 bool NvFBCGrabber::init()
@@ -210,6 +204,9 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& grabScreens)
 			}
 		}
 
+		// Secret password that enables NvFBC for GeForce cards
+		int magic[] = { 0x0D7BC620, 0x4C17E142, 0x5E6B5997, 0x4B5A855B };
+
 		// Create the NvFBCToSys object which can capture one screen defined by adapterIdx
 		NvFBCCreateParams createParams;
 		memset(&createParams, 0, sizeof(createParams));
@@ -217,8 +214,8 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& grabScreens)
 		createParams.dwInterfaceType = NVFBC_TO_SYS;
 		createParams.pDevice = NULL;
 		createParams.dwAdapterIdx = adapterIdx;
-		createParams.pPrivateData = &Magic;
-		createParams.dwPrivateDataSize = sizeof(Magic);
+		createParams.pPrivateData = &magic;
+		createParams.dwPrivateDataSize = sizeof(magic);
 		res = pfn_create(&createParams);
 
 		if (res != NVFBC_SUCCESS) {
@@ -229,15 +226,16 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& grabScreens)
 
 		// Setup grabScreen data
 		NvFBCToSys* fbc_to_sys = (NvFBCToSys*) createParams.pNvFBC;
-		size_t pitch = ((size_t) screen.rect.width() >> DownscaleMipLevel) * BytesPerPixel;
+		// ARGB format has 4 bytes per pixel
+		size_t pitch = ((size_t) screen.rect.width() >> m_downscale_factor) * 4;
 
 		GrabbedScreen grabScreen;
 		memset(&grabScreen, 0, sizeof(grabScreen));
 		grabScreen.screenInfo = screen;
 		grabScreen.associatedData = fbc_to_sys;
-		grabScreen.imgDataSize = (screen.rect.height() >> DownscaleMipLevel) * pitch;
+		grabScreen.imgDataSize = (screen.rect.height() >> m_downscale_factor) * pitch;
 		grabScreen.imgFormat = BufferFormatArgb;
-		grabScreen.scale = 1.0 / (1 << DownscaleMipLevel);
+		grabScreen.scale = 1.0 / (1 << m_downscale_factor);
 		grabScreen.bytesPerRow = pitch;
 
 		// Setup the NvFBCToSys object which allocates the framebuffer and which lets grabScreen.imgData point to it
@@ -281,8 +279,8 @@ GrabResult NvFBCGrabber::grabScreens()
 		memset(&fbcSysGrabParams, 0, sizeof(fbcSysGrabParams));
 		fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
 		fbcSysGrabParams.dwFlags = NVFBC_TOSYS_NOWAIT;
-		fbcSysGrabParams.dwTargetWidth = screen.screenInfo.rect.width() >> DownscaleMipLevel;
-		fbcSysGrabParams.dwTargetHeight = screen.screenInfo.rect.height() >> DownscaleMipLevel;
+		fbcSysGrabParams.dwTargetWidth = screen.screenInfo.rect.width() >> m_downscale_factor;
+		fbcSysGrabParams.dwTargetHeight = screen.screenInfo.rect.height() >> m_downscale_factor;
 		fbcSysGrabParams.eGMode = NVFBC_TOSYS_SOURCEMODE_SCALE;
 		fbcSysGrabParams.pNvFBCFrameGrabInfo = &frame_grab_info;
 		NVFBCRESULT res = fbc_to_sys->NvFBCToSysGrabFrame(&fbcSysGrabParams);

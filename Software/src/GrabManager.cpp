@@ -275,6 +275,12 @@ void GrabManager::onGrabGammaChanged(double gamma)
 	m_gamma = gamma;
 }
 
+void GrabManager::onDownscaleFactorChange(int change)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << change;
+	emit changeDownscaleFactor(change);
+}
+
 void GrabManager::onSendDataOnlyIfColorsEnabledChanged(bool state)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << state;
@@ -326,6 +332,7 @@ void GrabManager::settingsProfileChanged(const QString &profileName)
 	m_isApplyColorTemperature = Settings::isGrabApplyColorTemperatureEnabled();
 	m_colorTemperature = Settings::getGrabColorTemperature();
 	m_gamma = Settings::getGrabGamma();
+	emit changeDownscaleFactor(Settings::getDownscaleFactor());
 
 	setNumberOfLeds(Settings::getNumberOfLeds(Settings::getConnectedDevice()));
 }
@@ -602,7 +609,9 @@ void GrabManager::initGrabbers()
 #endif
 
 #ifdef NVFBC_GRAB_SUPPORT
-	m_grabbers[Grab::GrabberTypeNvFBC] = initGrabber(new NvFBCGrabber(NULL, m_grabberContext));
+	NvFBCGrabber* nvFBCGrabber = new NvFBCGrabber(NULL, m_grabberContext);
+	m_grabbers[Grab::GrabberTypeNvFBC] = initGrabber(nvFBCGrabber);
+	connect(this, SIGNAL(changeDownscaleFactor(int)), nvFBCGrabber, SLOT(onDownscaleFactorChange(int)));
 #endif
 
 #ifdef X11_GRAB_SUPPORT

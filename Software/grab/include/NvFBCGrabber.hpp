@@ -41,6 +41,10 @@
 class NvFBCGrabber : public GrabberBase
 {
 	Q_OBJECT
+
+public slots:
+	void onDownscaleFactorChange(int change);
+
 public:
 	NvFBCGrabber(QObject* parent, GrabberContext* context);
 	virtual ~NvFBCGrabber();
@@ -58,6 +62,7 @@ protected:
 	void freeScreens();
 
 private:
+	UINT m_downscale_factor;
 	BOOL m_reallocation_needed;
 	BOOL m_admin_message_shown;
 	HMODULE m_nvfbcDll;

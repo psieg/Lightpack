@@ -174,6 +174,7 @@ private slots:
 	void onSliderGrabGamma_valueChanged(int value);
 	void onLuminosityThreshold_valueChanged(int value);
 	void onMinimumLumosity_toggled(bool value);
+	void onDownscaleFactor_valueChanged(int value);
 
 	void onDeviceRefreshDelay_valueChanged(int value);
 	void onDisableUsbPowerLed_toggled(bool state);

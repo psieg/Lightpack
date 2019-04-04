@@ -278,6 +278,7 @@ void SettingsWindow::connectSignalsSlots()
 #endif
 #ifdef NVFBC_GRAB_SUPPORT
 	connect(ui->radioButton_GrabNvFBC, SIGNAL(toggled(bool)), this, SLOT(onGrabberChanged()));
+	connect(ui->spinBox_NvFBCDownscaleFactor, SIGNAL(valueChanged(int)), this, SLOT(onDownscaleFactor_valueChanged(int)));
 #endif
 #ifdef X11_GRAB_SUPPORT
 	connect(ui->radioButton_GrabX11, SIGNAL(toggled(bool)), this, SLOT(onGrabberChanged()));
@@ -821,6 +822,8 @@ void SettingsWindow::initGrabbersRadioButtonsVisibility()
 #endif
 #ifndef NVFBC_GRAB_SUPPORT
 	ui->radioButton_GrabNvFBC->setVisible(false);
+	ui->label_NvFBCDownscaleFactor->setVisible(false);
+	ui->spinBox_NvFBCDownscaleFactor->setVisible(false);
 #endif
 #ifndef D3D10_GRAB_SUPPORT
 	ui->checkBox_EnableDx1011Capture->setVisible(false);
@@ -1270,6 +1273,12 @@ void SettingsWindow::onMinimumLumosity_toggled(bool value)
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
 
 	Settings::setMinimumLuminosityEnabled(ui->radioButton_MinimumLuminosity->isChecked());
+}
+
+void SettingsWindow::onDownscaleFactor_valueChanged(int value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+	Settings::setDownscaleFactor(value);
 }
 
 void SettingsWindow::onDeviceRefreshDelay_valueChanged(int value)
@@ -1878,6 +1887,7 @@ void SettingsWindow::updateUiFromSettings()
 	ui->lineEdit_ApiPort->setValidator(new QIntValidator(1, 49151));
 	ui->lineEdit_ApiKey->setText										(Settings::getApiAuthKey());
 	ui->spinBox_LoggingLevel->setValue								(g_debugLevel);
+	ui->spinBox_NvFBCDownscaleFactor->setValue							(Settings::getDownscaleFactor());
 
 	switch (Settings::getGrabberType())
 	{
