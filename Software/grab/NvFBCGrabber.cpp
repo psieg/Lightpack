@@ -48,6 +48,7 @@ namespace {
 
 NvFBCGrabber::NvFBCGrabber(QObject* parent, GrabberContext* context)
 	: GrabberBase(parent, context),
+	m_reallocation_needed(TRUE),
 	m_admin_message_shown(FALSE),
 	m_nvfbcDll(NULL),
 	pfn_get_status(NULL),
@@ -92,12 +93,6 @@ void NvFBCGrabber::freeScreens()
 		if (fbc_to_sys)
 			fbc_to_sys->NvFBCToSysRelease();
 		fbc_to_sys = NULL;
-
-		if (screen.imgData != NULL) {
-			free((void*) screen.imgData);
-			screen.imgData = NULL;
-			screen.imgDataSize = 0;
-		}
 	}
 	_screensWithWidgets.clear();
 }
@@ -136,7 +131,12 @@ QList<ScreenInfo>* NvFBCGrabber::screensWithWidgets(QList<ScreenInfo>* result, c
 	return result;
 }
 
-bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& screens)
+bool NvFBCGrabber::isReallocationNeeded(const QList<ScreenInfo>&) const
+{
+	return m_reallocation_needed;
+}
+
+bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& grabScreens)
 {
 	freeScreens();
 	BOOL error = FALSE;
@@ -150,7 +150,7 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& screens)
 		qCritical(Q_FUNC_INFO " Failed to create d3d9 interface!");
 	}
 
-	for (ScreenInfo screen : screens) {
+	for (ScreenInfo screen : grabScreens) {
 		// Get the d3d9 adapter index from the screen handle
 		UINT adapterIdx = 0xFFFFFFFF;
 		for (UINT i = 0; i < adapterCount; ++i) {
@@ -266,6 +266,7 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& screens)
 
 	// Sleep so that ToSysSetUp can refresh the screen
 	Sleep(100);
+	m_reallocation_needed = FALSE;
 	return true;
 }
 
@@ -286,6 +287,17 @@ GrabResult NvFBCGrabber::grabScreens()
 		fbcSysGrabParams.pNvFBCFrameGrabInfo = &frame_grab_info;
 		NVFBCRESULT res = fbc_to_sys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
 
+		if (res == NVFBC_ERROR_PROTECTED_CONTENT) {
+			qInfo(Q_FUNC_INFO " NvFBC cannot grab protected content!");
+			// TODO Fallback to another grabber until protected content stop
+			return GrabResultError;
+		}
+		if (res == NVFBC_ERROR_INVALIDATED_SESSION) {
+			// Occurs when resolution or display topology changes or when transitioning through S3/S4 power states.
+			qInfo(Q_FUNC_INFO " NvFBC session was invalidated! Reallocating is needed.");
+			m_reallocation_needed = TRUE;
+			return GrabResultError;
+		}
 		if (res != NVFBC_SUCCESS) {
 			qCritical(Q_FUNC_INFO " Error grabbing frame with NvFBC: %d", res);
 			return GrabResultError;

@@ -51,12 +51,14 @@ protected slots:
 	GrabResult grabScreens() override;
 	bool reallocate(const QList<ScreenInfo>& grabScreens) override;
 	QList<ScreenInfo>* screensWithWidgets(QList<ScreenInfo>* result, const QList<GrabWidget*>& grabWidgets) override;
+	bool isReallocationNeeded(const QList<ScreenInfo>& grabScreens) const override;
 
 protected:
 	bool init();
 	void freeScreens();
 
 private:
+	BOOL m_reallocation_needed;
 	BOOL m_admin_message_shown;
 	HMODULE m_nvfbcDll;
 	NvFBC_GetStatusExFunctionType pfn_get_status;
