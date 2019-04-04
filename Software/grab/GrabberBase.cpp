@@ -103,13 +103,13 @@ const GrabbedScreen * GrabberBase::screenOfRect(const QRect &rect) const
 	return NULL;
 }
 
-bool GrabberBase::isReallocationNeeded(const QList< ScreenInfo > &screensWithWidgets) const
+bool GrabberBase::isReallocationNeeded(const QList< ScreenInfo > & grabScreens) const
 {
-	if (_screensWithWidgets.size() == 0 || screensWithWidgets.size() != _screensWithWidgets.size())
+	if (_screensWithWidgets.size() == 0 || grabScreens.size() != _screensWithWidgets.size())
 		return true;
 
-	for (int i = 0; i < screensWithWidgets.size(); ++i) {
-		if (screensWithWidgets[i].rect != _screensWithWidgets[i].screenInfo.rect)
+	for (int i = 0; i < grabScreens.size(); ++i) {
+		if (grabScreens[i].rect != _screensWithWidgets[i].screenInfo.rect)
 			return true;
 	}
 	return false;

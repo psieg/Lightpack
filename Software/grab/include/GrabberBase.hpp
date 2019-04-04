@@ -25,8 +25,6 @@
 
 #pragma once
 
-#include <QSharedPointer>
-#include <QColor>
 #include <QTimer>
 #include "src/GrabWidget.hpp"
 #include "calculations.hpp"
@@ -66,7 +64,7 @@ struct GrabbedScreen {
 };
 
 #define DECLARE_GRABBER_NAME(grabber_name) \
-	virtual const char * name() const { \
+	const char * name() const override { \
 		static const char * static_grabber_name = (grabber_name); \
 		return static_grabber_name; \
 	}
@@ -79,14 +77,8 @@ class GrabberBase : public QObject
 {
 	Q_OBJECT
 public:
-
-	/*!
-		\param parent standart Qt-specific owner
-		\param grabResult \code QList \endcode to write results of grabbing to
-		\param grabWidgets List of GrabWidgets
-	*/
 	GrabberBase(QObject * parent, GrabberContext * grabberContext);
-	virtual ~GrabberBase() {}
+	virtual ~GrabberBase() = default;
 
 	virtual const char * name() const = 0;
 
