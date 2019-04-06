@@ -32,7 +32,7 @@
 
 NvFBCGrabber::NvFBCGrabber(QObject* parent, GrabberContext* context)
 	: GrabberBase(parent, context),
-	m_downscale_factor(0),
+	m_downscale_factor(100),
 	m_reallocation_needed(TRUE),
 	m_admin_message_shown(FALSE),
 	m_nvfbcDll(NULL),
