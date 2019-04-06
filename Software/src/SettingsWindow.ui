@@ -2690,7 +2690,13 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
                   <item>
                    <widget class="QSpinBox" name="spinBox_NvFBCDownscaleFactor">
                     <property name="maximum">
-                     <number>4</number>
+                     <number>100</number>
+                    </property>
+                    <property name="minimum">
+                     <number>1</number>
+                    </property>
+                    <property name="suffix">
+                     <cstring>%</cstring>
                     </property>
                    </widget>
                   </item>

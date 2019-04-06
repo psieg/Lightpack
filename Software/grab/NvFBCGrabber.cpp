@@ -226,16 +226,16 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& grabScreens)
 
 		// Setup grabScreen data
 		NvFBCToSys* fbc_to_sys = (NvFBCToSys*) createParams.pNvFBC;
-		// ARGB format has 4 bytes per pixel
-		size_t pitch = ((size_t) screen.rect.width() >> m_downscale_factor) * 4;
+		double scale = (double) m_downscale_factor / 100;
+		size_t pitch = ((size_t) (screen.rect.width() * scale)) * 4; // ARGB format has 4 bytes per pixel
 
 		GrabbedScreen grabScreen;
 		memset(&grabScreen, 0, sizeof(grabScreen));
 		grabScreen.screenInfo = screen;
 		grabScreen.associatedData = fbc_to_sys;
-		grabScreen.imgDataSize = (screen.rect.height() >> m_downscale_factor) * pitch;
+		grabScreen.imgDataSize = ((size_t) (screen.rect.height() * scale)) * pitch;
 		grabScreen.imgFormat = BufferFormatArgb;
-		grabScreen.scale = 1.0 / (1 << m_downscale_factor);
+		grabScreen.scale = scale;
 		grabScreen.bytesPerRow = pitch;
 
 		// Setup the NvFBCToSys object which allocates the framebuffer and which lets grabScreen.imgData point to it
@@ -274,13 +274,14 @@ GrabResult NvFBCGrabber::grabScreens()
 		// Grab one frame from a monitor into screen.imgData
 		NvFBCToSys* fbc_to_sys = (NvFBCToSys*) screen.associatedData;
 		NvFBCFrameGrabInfo frame_grab_info;
+		double scale = (double) m_downscale_factor / 100;
 
 		NVFBC_TOSYS_GRAB_FRAME_PARAMS fbcSysGrabParams;
 		memset(&fbcSysGrabParams, 0, sizeof(fbcSysGrabParams));
 		fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
 		fbcSysGrabParams.dwFlags = NVFBC_TOSYS_NOWAIT;
-		fbcSysGrabParams.dwTargetWidth = screen.screenInfo.rect.width() >> m_downscale_factor;
-		fbcSysGrabParams.dwTargetHeight = screen.screenInfo.rect.height() >> m_downscale_factor;
+		fbcSysGrabParams.dwTargetWidth = screen.screenInfo.rect.width() * scale;
+		fbcSysGrabParams.dwTargetHeight = screen.screenInfo.rect.height() * scale;
 		fbcSysGrabParams.eGMode = NVFBC_TOSYS_SOURCEMODE_SCALE;
 		fbcSysGrabParams.pNvFBCFrameGrabInfo = &frame_grab_info;
 		NVFBCRESULT res = fbc_to_sys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
