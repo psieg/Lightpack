@@ -176,7 +176,7 @@ bool NvFBCGrabber::reallocate(const QList<ScreenInfo>& grabScreens)
 
 		// Check if the NvFBC feature must be enabled first
 		if (!status.bIsCapturePossible) {
-			qInfo(Q_FUNC_INFO " NvFBC is disabled. Trying to enable it...");
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << " NvFBC is disabled. Trying to enable it...";
 			res = pfn_enable(NVFBC_STATE_ENABLE);
 
 			if (res == NVFBC_ERROR_INSUFFICIENT_PRIVILEGES) {
@@ -287,13 +287,12 @@ GrabResult NvFBCGrabber::grabScreens()
 		NVFBCRESULT res = fbc_to_sys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
 
 		if (res == NVFBC_ERROR_PROTECTED_CONTENT) {
-			qInfo(Q_FUNC_INFO " NvFBC cannot grab protected content!");
-			// TODO Fallback to another grabber until protected content stop
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << " NvFBC cannot grab protected content!";
 			return GrabResultError;
 		}
 		if (res == NVFBC_ERROR_INVALIDATED_SESSION) {
 			// Occurs when resolution or display topology changes or when transitioning through S3/S4 power states.
-			qInfo(Q_FUNC_INFO " NvFBC session was invalidated! Reallocating is needed.");
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << " NvFBC session was invalidated! Reallocating is needed.";
 			m_reallocation_needed = TRUE;
 			return GrabResultError;
 		}
