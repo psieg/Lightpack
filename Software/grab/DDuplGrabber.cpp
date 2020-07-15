@@ -43,8 +43,8 @@ _COM_SMARTPTR_TYPEDEF(ID3D11Texture2D, __uuidof(ID3D11Texture2D));
 _COM_SMARTPTR_TYPEDEF(ID3D11ShaderResourceView, __uuidof(ID3D11ShaderResourceView));
 
 
-typedef HRESULT(WINAPI *CreateDXGIFactory1Func)(REFIID riid, _Out_ void **ppFactory);
-typedef HRESULT(WINAPI *D3D11CreateDeviceFunc)(
+typedef HRESULT(WINAPI* CreateDXGIFactory1Func)(REFIID riid, _Out_ void** ppFactory);
+typedef HRESULT(WINAPI* D3D11CreateDeviceFunc)(
 	_In_opt_ IDXGIAdapter* pAdapter,
 	D3D_DRIVER_TYPE DriverType,
 	HMODULE Software,
@@ -79,16 +79,16 @@ struct DDuplScreenData
 		: output(_output), duplication(_duplication), device(_device), context(_context)
 	{}
 
-	IDXGIOutputPtr output{nullptr};
-	IDXGIOutputDuplicationPtr duplication{nullptr};
-	ID3D11DevicePtr device{nullptr};
-	ID3D11DeviceContextPtr context{nullptr};
+	IDXGIOutputPtr output{ nullptr };
+	IDXGIOutputDuplicationPtr duplication{ nullptr };
+	ID3D11DevicePtr device{ nullptr };
+	ID3D11DeviceContextPtr context{ nullptr };
 
-	ID3D11Texture2DPtr textureCopy{nullptr};
+	ID3D11Texture2DPtr textureCopy{ nullptr };
 	DXGI_MAPPED_RECT surfaceMap;
 };
 
-DDuplGrabber::DDuplGrabber(QObject * parent, GrabberContext *context)
+DDuplGrabber::DDuplGrabber(QObject* parent, GrabberContext* context)
 	: GrabberBase(parent, context),
 	m_state(Uninitialized),
 	m_accessDeniedLastCheck(0),
@@ -162,6 +162,7 @@ bool DDuplGrabber::init()
 	}
 
 	m_state = Ready;
+	m_releaseFrame = false;
 	return true;
 }
 
@@ -220,7 +221,7 @@ bool DDuplGrabber::runThreadCommand(DWORD timeout) {
 	}
 }
 
-bool anyWidgetOnThisMonitor(HMONITOR monitor, const QList<GrabWidget *> &grabWidgets)
+bool anyWidgetOnThisMonitor(HMONITOR monitor, const QList<GrabWidget*>& grabWidgets)
 {
 	for (GrabWidget* widget : grabWidgets)
 	{
@@ -234,12 +235,12 @@ bool anyWidgetOnThisMonitor(HMONITOR monitor, const QList<GrabWidget *> &grabWid
 	return false;
 }
 
-QList< ScreenInfo > * DDuplGrabber::screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets)
+QList< ScreenInfo >* DDuplGrabber::screensWithWidgets(QList< ScreenInfo >* result, const QList<GrabWidget*>& grabWidgets)
 {
 	return __screensWithWidgets(result, grabWidgets);
 }
 
-QList< ScreenInfo > * DDuplGrabber::__screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets, bool noRecursion)
+QList< ScreenInfo >* DDuplGrabber::__screensWithWidgets(QList< ScreenInfo >* result, const QList<GrabWidget*>& grabWidgets, bool noRecursion)
 {
 	result->clear();
 
@@ -261,7 +262,8 @@ QList< ScreenInfo > * DDuplGrabber::__screensWithWidgets(QList< ScreenInfo > * r
 					qWarning() << Q_FUNC_INFO << "Found a monitor with NULL handle. Recreating adapters";
 					recreateAdapters();
 					return __screensWithWidgets(result, grabWidgets, true);
-				} else {
+				}
+				else {
 					qWarning() << Q_FUNC_INFO << "Found a monitor with NULL handle (after recreation)";
 					continue;
 				}
@@ -296,7 +298,7 @@ void DDuplGrabber::onSessionChange(int change)
 	}
 }
 
-bool DDuplGrabber::isReallocationNeeded(const QList< ScreenInfo > &grabScreens) const
+bool DDuplGrabber::isReallocationNeeded(const QList< ScreenInfo >& grabScreens) const
 {
 	if (m_state != Allocated)
 	{
@@ -350,7 +352,7 @@ void DDuplGrabber::freeScreens()
 	_screensWithWidgets.clear();
 }
 
-bool DDuplGrabber::reallocate(const QList< ScreenInfo > &grabScreens)
+bool DDuplGrabber::reallocate(const QList< ScreenInfo >& grabScreens)
 {
 	// Reallocate on the dedicated thread to be able to SetThreadDesktop to the currently active input desktop
 	// once the duplication is created, it seems like it can be used from the normal thread.
@@ -358,13 +360,14 @@ bool DDuplGrabber::reallocate(const QList< ScreenInfo > &grabScreens)
 	m_threadReallocateArg = grabScreens;
 	if (runThreadCommand(INFINITE)) {
 		return m_threadReallocateResult;
-	} else {
+	}
+	else {
 		return false;
 	}
 }
 
 // Must be called from DDuplGrabberThreadProc !
-bool DDuplGrabber::_reallocate(const QList< ScreenInfo > &grabScreens, bool noRecursion)
+bool DDuplGrabber::_reallocate(const QList< ScreenInfo >& grabScreens, bool noRecursion)
 {
 	if (m_state == Uninitialized)
 	{
@@ -384,7 +387,8 @@ bool DDuplGrabber::_reallocate(const QList< ScreenInfo > &grabScreens, bool noRe
 			m_accessDeniedLastCheck = GetTickCount();
 			qWarning(Q_FUNC_INFO " Access to input desktop denied, retry later");
 			return true;
-		} else {
+		}
+		else {
 			qCritical(Q_FUNC_INFO " Failed to open input desktop: %x", GetLastError());
 			return true;
 		}
@@ -449,7 +453,8 @@ bool DDuplGrabber::_reallocate(const QList< ScreenInfo > &grabScreens, bool noRe
 								return false;
 							}
 							return _reallocate(grabScreens, true);
-						} else {
+						}
+						else {
 							qCritical(Q_FUNC_INFO " Failed to reallocate: DXGI mode change in progress (after recreation)");
 							return false;
 						}
@@ -461,7 +466,7 @@ bool DDuplGrabber::_reallocate(const QList< ScreenInfo > &grabScreens, bool noRe
 					}
 
 					GrabbedScreen grabScreen;
-					grabScreen.imgData = (unsigned char *)NULL;
+					grabScreen.imgData = (unsigned char*)NULL;
 					grabScreen.imgFormat = BufferFormatArgb;
 					grabScreen.screenInfo = screenInfo;
 					grabScreen.scale = 1.0;
@@ -513,15 +518,15 @@ BufferFormat mapDXGIFormatToBufferFormat(DXGI_FORMAT format)
 {
 	switch (format)
 	{
-		case DXGI_FORMAT_B8G8R8A8_UNORM:
-		case DXGI_FORMAT_B8G8R8A8_TYPELESS:
-			return BufferFormatArgb;
-		case DXGI_FORMAT_R8G8B8A8_UINT:
-		case DXGI_FORMAT_R8G8B8A8_UNORM:
-		case DXGI_FORMAT_R8G8B8A8_TYPELESS:
-			return BufferFormatAbgr;
-		default:
-			return BufferFormatUnknown;
+	case DXGI_FORMAT_B8G8R8A8_UNORM:
+	case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+		return BufferFormatArgb;
+	case DXGI_FORMAT_R8G8B8A8_UINT:
+	case DXGI_FORMAT_R8G8B8A8_UNORM:
+	case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+		return BufferFormatAbgr;
+	default:
+		return BufferFormatUnknown;
 	}
 }
 
@@ -604,6 +609,11 @@ GrabResult DDuplGrabber::grabScreens()
 			DDuplScreenData* screenData = (DDuplScreenData*)screen.associatedData;
 			DXGI_OUTDUPL_FRAME_INFO frameInfo;
 			IDXGIResourcePtr resource;
+			if (m_releaseFrame)
+			{
+				screenData->duplication->ReleaseFrame();
+				m_releaseFrame = false;
+			}
 			HRESULT hr = screenData->duplication->AcquireNextFrame(ACQUIRE_TIMEOUT_INTERVAL, &frameInfo, &resource);
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT)
 			{
@@ -627,6 +637,7 @@ GrabResult DDuplGrabber::grabScreens()
 				return GrabResultError;
 			}
 			anyUpdate = true;
+			m_releaseFrame = true;
 
 			ID3D11Texture2DPtr texture;
 			hr = resource->QueryInterface(IID_ID3D11Texture2D, (void**)&texture);
@@ -668,7 +679,8 @@ GrabResult DDuplGrabber::grabScreens()
 			// reset texture and data before getting new one
 			if (screenData->textureCopy) {
 				screenData->textureCopy = nullptr;
-			} else if (screen.imgData) {
+			}
+			else if (screen.imgData) {
 				free((void*)screen.imgData);
 			}
 
@@ -741,7 +753,6 @@ GrabResult DDuplGrabber::grabScreens()
 			screen.scale = 1.0 / (1 << DownscaleMipLevel);
 			screen.bytesPerRow = screenData->surfaceMap.Pitch;
 
-			screenData->duplication->ReleaseFrame();
 		}
 
 		if (!anyUpdate)
