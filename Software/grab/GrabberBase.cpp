@@ -23,6 +23,7 @@
  *
  */
 
+#include <QGuiApplication>
 #include "GrabberContext.hpp"
 #include "GrabWidget.hpp"
 #include "GrabberBase.hpp"
@@ -140,12 +141,14 @@ void GrabberBase::grab()
 		++grabScreensCount;
 		_context->grabResult->clear();
 
-		for (int i = 0; i < _context->grabWidgets->size(); ++i) {
-			if (!_context->grabWidgets->at(i)->isAreaEnabled()) {
+		for (GrabWidget* grabWidget: *_context->grabWidgets) {
+			if (!grabWidget->isAreaEnabled()) {
 				_context->grabResult->append(qRgb(0,0,0));
 				continue;
 			}
-			QRect widgetRect = _context->grabWidgets->at(i)->frameGeometry();
+			QRect widgetRect = grabWidget->frameGeometry();
+			const qreal scale = qApp->devicePixelRatio();
+			widgetRect = QRect(widgetRect.topLeft() * scale, widgetRect.size() * scale);
 			getValidRect(widgetRect);
 
 			const GrabbedScreen *grabbedScreen = screenOfRect(widgetRect);
