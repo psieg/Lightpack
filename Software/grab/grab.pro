@@ -23,6 +23,10 @@ INCLUDEPATH += ./include \
                ../math/include \
                ..
 
+QMAKE_CFLAGS = $$(CFLAGS)
+QMAKE_CXXFLAGS = $$(CXXFLAGS)
+QMAKE_LFLAGS = $$(LDFLAGS)
+
 QMAKE_CXXFLAGS += -std=c++17
 CONFIG(clang) {
     QMAKE_CXXFLAGS += -stdlib=libc++

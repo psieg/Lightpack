@@ -58,6 +58,10 @@ DEFINES += $${SUPPORTED_GRABBERS}
 
 LIBS    += -L../lib -lgrab -lprismatik-math
 
+QMAKE_CFLAGS = $$(CFLAGS)
+QMAKE_CXXFLAGS = $$(CXXFLAGS)
+QMAKE_LFLAGS = $$(LDFLAGS)
+
 CONFIG(gcc):QMAKE_CXXFLAGS += -std=c++11
 CONFIG(clang) {
     QMAKE_CXXFLAGS += -std=c++11 -stdlib=libc++

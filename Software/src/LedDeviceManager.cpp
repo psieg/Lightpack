@@ -452,44 +452,50 @@ AbstractLedDevice * LedDeviceManager::createLedDevice(SupportedDevices::DeviceTy
 
 	AbstractLedDevice* device = nullptr;
 
-	switch (deviceType){
+	switch (deviceType) {
 
 	case SupportedDevices::DeviceTypeLightpack:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::LightpackDevice";
 		device = (AbstractLedDevice *)new LedDeviceLightpack();
+		break;
 
 	case SupportedDevices::DeviceTypeAlienFx:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::AlienFxDevice";
 
 #		ifdef Q_OS_WIN
 		device = (AbstractLedDevice *)new LedDeviceAlienFx();
-#		else
-		break;
 #		endif /* Q_OS_WIN */
+		break;
 
 	case SupportedDevices::DeviceTypeAdalight:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::AdalightDevice";
 		device = (AbstractLedDevice *)new LedDeviceAdalight(Settings::getAdalightSerialPortName(), Settings::getAdalightSerialPortBaudRate());
+		break;
 
 	case SupportedDevices::DeviceTypeArdulight:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::ArdulightDevice";
 		device = (AbstractLedDevice *)new LedDeviceArdulight(Settings::getArdulightSerialPortName(), Settings::getArdulightSerialPortBaudRate());
+		break;
 
 	case SupportedDevices::DeviceTypeDrgb:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::DrgbDevice";
 		device = (AbstractLedDevice*)new LedDeviceDrgb(Settings::getDrgbAddress(), Settings::getDrgbPort(), Settings::getDrgbTimeout());
+		break;
 
 	case SupportedDevices::DeviceTypeDnrgb:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::DnrgbDevice";
 		device = (AbstractLedDevice*)new LedDeviceDnrgb(Settings::getDnrgbAddress(), Settings::getDnrgbPort(), Settings::getDnrgbTimeout());
+		break;
 
 	case SupportedDevices::DeviceTypeWarls:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::WarlsDevice";
 		device = (AbstractLedDevice*)new LedDeviceWarls(Settings::getWarlsAddress(), Settings::getWarlsPort(), Settings::getWarlsTimeout());
+		break;
 
 	case SupportedDevices::DeviceTypeVirtual:
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "SupportedDevices::VirtualDevice";
 		device = (AbstractLedDevice *)new LedDeviceVirtual();
+		break;
 
 	default:
 		break;
