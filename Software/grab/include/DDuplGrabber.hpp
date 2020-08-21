@@ -63,7 +63,7 @@ class DDuplGrabber : public GrabberBase
 {
 	Q_OBJECT
 public:
-	DDuplGrabber(QObject* parent, GrabberContext* context);
+	DDuplGrabber(QObject * parent, GrabberContext *context);
 	virtual ~DDuplGrabber();
 
 	DECLARE_GRABBER_NAME("DDuplGrabber")
@@ -73,13 +73,13 @@ public slots:
 
 protected slots:
 	virtual GrabResult grabScreens();
-	virtual bool reallocate(const QList< ScreenInfo >& grabScreens);
-	bool _reallocate(const QList< ScreenInfo >& grabScreens, bool noRecursion = false);
+	virtual bool reallocate(const QList< ScreenInfo > &grabScreens);
+	bool _reallocate(const QList< ScreenInfo > &grabScreens, bool noRecursion = false);
 
-	virtual QList< ScreenInfo >* screensWithWidgets(QList< ScreenInfo >* result, const QList<GrabWidget*>& grabWidgets);
-	QList< ScreenInfo >* __screensWithWidgets(QList< ScreenInfo >* result, const QList<GrabWidget*>& grabWidgets, bool noRecursion = false);
+	virtual QList< ScreenInfo > * screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets);
+	QList< ScreenInfo > * __screensWithWidgets(QList< ScreenInfo > * result, const QList<GrabWidget *> &grabWidgets, bool noRecursion = false);
 
-	virtual bool isReallocationNeeded(const QList< ScreenInfo >& grabScreens) const;
+	virtual bool isReallocationNeeded(const QList< ScreenInfo > &grabScreens) const;
 
 protected:
 	bool init();
@@ -105,7 +105,6 @@ private:
 	QList<ScreenInfo> m_threadReallocateArg;
 	bool m_threadReallocateResult;
 	bool m_isSessionLocked;
-	bool m_releaseFrame;
 };
 
 
