@@ -169,4 +169,33 @@ void AbstractLedDevice::applyColorModifications(const QList<QRgb> &inColors, QLi
 			color.b *= powerRatio;
 		}
 	}
+
+	double carryR = 0;
+	double carryG = 0;
+	double carryB = 0;
+
+	for (int i = 0; i < outColors.count(); ++i)	{
+		double tempR = outColors[i].r + carryR;
+		double tempG = outColors[i].g + carryG;
+		double tempB = outColors[i].b + carryB;
+
+		const constexpr double k = 4095 / 255.0;
+		const constexpr double kinv = 255.0 / 4095;
+
+		if ((tempR * kinv) > 255)	outColors[i].r = 255 << 4;
+		else if (tempR < 0)			outColors[i].r = 0;
+		else						outColors[i].r = (int)(tempR * kinv + 0.5) << 4;
+
+		if ((tempG * kinv) > 255)	outColors[i].g = 255 << 4;
+		else if (tempG < 0)			outColors[i].g = 0;
+		else						outColors[i].g = (int)(tempG * kinv + 0.5) << 4;
+
+		if ((tempB * kinv) > 255)	outColors[i].b = 255 << 4;
+		else if (tempB < 0) 		outColors[i].b = 0;
+		else						outColors[i].b = (int)(tempB * kinv + 0.5) << 4;
+
+		carryR = tempR - ((double)(outColors[i].r >> 4) * k);
+		carryG = tempG - ((double)(outColors[i].g >> 4) * k);
+		carryB = tempB - ((double)(outColors[i].b >> 4) * k);
+	}
 }
