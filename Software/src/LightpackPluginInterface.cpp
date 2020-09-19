@@ -101,8 +101,8 @@ void LightpackPluginInterface::initColors(int numberOfLeds)
 	m_setColors.clear();
 	for (int i = 0; i < numberOfLeds; i++)
 	{
-		m_setColors << 0;
-		m_curColors << 0;
+		m_setColors << qRgba64(0);
+		m_curColors << qRgba64(0);
 	}
 }
 
@@ -157,7 +157,7 @@ void LightpackPluginInterface::refreshScreenRect(QRect rect)
 	screen = rect;
 }
 
-void LightpackPluginInterface::updateColorsCache(const QList<QRgb> & colors)
+void LightpackPluginInterface::updateColorsCache(const QList<QRgba64> & colors)
 {
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO;
 	m_curColors = colors;
@@ -328,7 +328,7 @@ bool LightpackPluginInterface::SetColors(QString sessionKey, int r, int g, int b
 		lockAlive = true;
 	for (int i = 0; i < m_setColors.size(); i++)
 	{
-			m_setColors[i] = qRgb(r,g,b);
+		m_setColors[i] = qRgba64(r * 257, g * 257, b * 257, 0);
 	}
 	m_curColors = m_setColors;
 	emit updateLedsColors(m_setColors);
@@ -641,7 +641,7 @@ QList<QRect> LightpackPluginInterface::GetLeds()
 	return leds;
 }
 
-QList<QRgb> LightpackPluginInterface::GetColors()
+QList<QRgba64> LightpackPluginInterface::GetColors()
 {
 	return m_curColors;
 }

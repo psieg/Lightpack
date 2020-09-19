@@ -69,6 +69,11 @@ void GrabberBase::setGrabInterval(int msec)
 	m_timer->setInterval(msec);
 }
 
+void GrabberBase::setGammaDecodeValue(double value)
+{
+	for (int i = 0; i < 256; i++) gammaDecodeArray[i] = 65535 * pow((double)i / 255.0, value);
+}
+
 void GrabberBase::startGrabbing()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << this->metaObject()->className();
@@ -142,7 +147,7 @@ void GrabberBase::grab()
 
 		for (int i = 0; i < _context->grabWidgets->size(); ++i) {
 			if (!_context->grabWidgets->at(i)->isAreaEnabled()) {
-				_context->grabResult->append(qRgb(0,0,0));
+				_context->grabResult->append(qRgba64(0));
 				continue;
 			}
 			QRect widgetRect = _context->grabWidgets->at(i)->frameGeometry();
@@ -151,7 +156,7 @@ void GrabberBase::grab()
 			const GrabbedScreen *grabbedScreen = screenOfRect(widgetRect);
 			if (grabbedScreen == NULL) {
 				DEBUG_HIGH_LEVEL << Q_FUNC_INFO << " widget is out of screen " << Debug::toString(widgetRect);
-				_context->grabResult->append(0);
+				_context->grabResult->append(qRgba64(0));
 				continue;
 			}
 			DEBUG_HIGH_LEVEL << Q_FUNC_INFO << Debug::toString(widgetRect);
@@ -164,7 +169,7 @@ void GrabberBase::grab()
 
 				DEBUG_HIGH_LEVEL << "Widget 'grabme' is out of screen:" << Debug::toString(clippedRect);
 
-				_context->grabResult->append(qRgb(0,0,0));
+				_context->grabResult->append(qRgba64(0));
 				continue;
 			}
 
@@ -210,16 +215,16 @@ void GrabberBase::grab()
 				qWarning() << Q_FUNC_INFO << " preparedRect is not valid:" << Debug::toString(preparedRect);
 				// width and height can't be negative
 
-				_context->grabResult->append(qRgb(0,0,0));
+				_context->grabResult->append(qRgba64(0));
 				continue;
 			}
 
 			const int bytesPerPixel = 4;
 			Q_ASSERT(grabbedScreen->imgData);
-			QRgb avgColor = Grab::Calculations::calculateAvgColor(
+			QRgba64 avgColor = Grab::Calculations::calculateAvgColor(
 				grabbedScreen->imgData, grabbedScreen->imgFormat,
 				grabbedScreen->bytesPerRow > 0 ? grabbedScreen->bytesPerRow : grabbedScreen->screenInfo.rect.width() * bytesPerPixel,
-				preparedRect);
+				preparedRect, gammaDecodeArray);
 			_context->grabResult->append(avgColor);
 		}
 

@@ -70,20 +70,20 @@ AbstractLedDevice * WizardPageUsingDevice::device()
 
 void WizardPageUsingDevice::turnLightOn(int id)
 {
-	QList<QRgb> lights;
+	QList<QRgba64> lights;
 	for (int i = 0; i < _transSettings->ledCount; i++)
 	{
 		if (i == id)
-			lights.append(qRgb(255, 255, 255));
+			lights.append(qRgba64(65535, 65535, 65535, 0));
 		else
-			lights.append(0);
+			lights.append(qRgba64(0));
 	}
 	device()->setColors(lights);
 }
 
-void WizardPageUsingDevice::turnLightsOn(QRgb color)
+void WizardPageUsingDevice::turnLightsOn(QRgba64 color)
 {
-	QList<QRgb> lights;
+	QList<QRgba64> lights;
 	for (int i = 0; i < _transSettings->ledCount; i++)
 	{
 		lights.append(color);
@@ -93,10 +93,10 @@ void WizardPageUsingDevice::turnLightsOn(QRgb color)
 
 void WizardPageUsingDevice::turnLightsOff()
 {
-	QList<QRgb> lights;
+	QList<QRgba64> lights;
 	for (int i = 0; i < _transSettings->ledCount; i++)
 	{
-		lights.append(0);
+		lights.append(qRgba64(0));
 	}
 	device()->setColors(lights);
 }

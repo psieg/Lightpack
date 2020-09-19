@@ -51,7 +51,7 @@ public:
 	QStringList GetProfiles();
 	QString GetProfile();
 	QList<QRect> GetLeds();
-	QList<QRgb> GetColors();
+	QList<QRgba64> GetColors();
 	double GetFPS();
 	QRect GetScreenSize();
 	int GetBacklight();
@@ -84,7 +84,7 @@ signals:
 signals:
 	void requestBacklightStatus();
 	void updateDeviceLockStatus(DeviceLocked::DeviceLockStatus status, QList<QString> modules);
-	void updateLedsColors(const QList<QRgb> & colors);
+	void updateLedsColors(const QList<QRgba64> & colors);
 	void updateGamma(double value);
 	void updateBrightness(int value);
 	void updateSmooth(int value);
@@ -106,7 +106,7 @@ public slots:
 	void changeProfile(QString profile);
 	void refreshAmbilightEvaluated(double updateResultMs);
 	void refreshScreenRect(QRect rect);
-	void updateColorsCache(const QList<QRgb> & colors);
+	void updateColorsCache(const QList<QRgba64> & colors);
 	void updateGammaCache(double value);
 	void updateBrightnessCache(int value);
 	void updateSmoothCache(int value);
@@ -132,8 +132,8 @@ private:
 	QRect screen;
 
 	QList<QString> lockSessionKeys;
-	QList<QRgb> m_setColors;
-	QList<QRgb> m_curColors;
+	QList<QRgba64> m_setColors;
+	QList<QRgba64> m_curColors;
 	QTimer *m_timerLock;
 
 	double m_gamma;

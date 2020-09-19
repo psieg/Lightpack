@@ -234,6 +234,44 @@ namespace {
 		return color;
 	};
 
+	template<uint8_t offsetR, uint8_t offsetG, uint8_t offsetB>
+	static ColorValue accumulateBufferGamma(
+		const int* const buff,
+		const size_t pitch,
+		const QRect& rect,
+		const quint16* gamma) {
+		const unsigned char* const buffer = (const unsigned char* const)buff;
+
+		int r = 0;
+		int g = 0;
+		int b = 0;
+
+		const int delta = rect.width() % pixelsPerStep;
+		if (rect.width() >= pixelsPerStep)
+			for (int currentY = 0; currentY < rect.height(); currentY++) {
+				for (int currentX = 0; currentX < rect.width() - delta; currentX += pixelsPerStep) {
+					const size_t index = pitch * bytesPerPixel * (rect.y() + currentY) + (rect.x() + currentX) * bytesPerPixel;
+					r += gamma[PIXEL_R(0)] + gamma[PIXEL_R(1)] + gamma[PIXEL_R(2)] + gamma[PIXEL_R(3)];
+					g += gamma[PIXEL_G(0)] + gamma[PIXEL_G(1)] + gamma[PIXEL_G(2)] + gamma[PIXEL_G(3)];
+					b += gamma[PIXEL_B(0)] + gamma[PIXEL_B(1)] + gamma[PIXEL_B(2)] + gamma[PIXEL_B(3)];
+				}
+			}
+		for (int currentX = rect.width() - delta; currentX < rect.width(); ++currentX) {
+			for (int currentY = 0; currentY < rect.height(); ++currentY) {
+				const size_t index = pitch * bytesPerPixel * (rect.y() + currentY) + (rect.x() + currentX) * bytesPerPixel;
+				r += gamma[PIXEL_R(0)];
+				g += gamma[PIXEL_G(0)];
+				b += gamma[PIXEL_B(0)];
+			}
+		}
+
+		const size_t count = rect.height() * rect.width();
+		ColorValue color;
+		color.r = (r / count) & 0xffff;
+		color.g = (g / count) & 0xffff;
+		color.b = (b / count) & 0xffff;
+		return color;
+	};
 
 enum SIMDLevel {
     None = 0,
@@ -371,6 +409,34 @@ namespace Grab {
 			}
 
 			return qRgb(color.r, color.g, color.b);
+		}
+
+		QRgba64 calculateAvgColor(const unsigned char* const buffer, BufferFormat bufferFormat, const size_t pitch, const QRect& rect, const quint16* gamma) {
+			
+			ColorValue color;
+			switch (bufferFormat) {
+				case BufferFormatArgb:
+					color = accumulateBufferGamma<PIXEL_FORMAT_ARGB>((int*)buffer, pitch / bytesPerPixel, rect, gamma);
+					break;
+
+				case BufferFormatAbgr:
+					color = accumulateBufferGamma<PIXEL_FORMAT_ABGR>((int*)buffer, pitch / bytesPerPixel, rect, gamma);
+					break;
+
+				case BufferFormatRgba:
+					color = accumulateBufferGamma<PIXEL_FORMAT_RGBA>((int*)buffer, pitch / bytesPerPixel, rect, gamma);
+					break;
+
+				case BufferFormatBgra:
+					color = accumulateBufferGamma<PIXEL_FORMAT_BGRA>((int*)buffer, pitch / bytesPerPixel, rect, gamma);
+					break;
+
+				default:
+					return qRgba64(0);
+					break;
+			}
+			
+			return qRgba64(color.r, color.g, color.b, 0);
 		}
 	}
 }

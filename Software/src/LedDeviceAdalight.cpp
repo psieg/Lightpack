@@ -73,7 +73,7 @@ void LedDeviceAdalight::close()
 	m_AdalightDevice = NULL;
 }
 
-void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
+void LedDeviceAdalight::setColors(const QList<QRgba64> & colors)
 {
 	// Save colors for showing changes of the brightness
 	m_colorsSaved = colors;
@@ -90,9 +90,9 @@ void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
 	{
 		StructRgb color = m_colorsBuffer[i];
 
-		color.r = color.r >> 4;
-		color.g = color.g >> 4;
-		color.b = color.b >> 4;
+		color.r = color.r >> 8;
+		color.g = color.g >> 8;
+		color.b = color.b >> 8;
 
 		if (m_colorSequence == "RBG")
 		{
@@ -143,7 +143,7 @@ void LedDeviceAdalight::switchOffLeds()
 	m_colorsSaved.clear();
 
 	for (int i = 0; i < count; i++)
-		m_colorsSaved << 0;
+		m_colorsSaved << qRgba64(0);
 
 	m_writeBuffer.clear();
 	m_writeBuffer.append(m_writeBufferHeader);

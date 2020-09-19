@@ -115,12 +115,12 @@ DECLARE_LAMP(Static, "Static (default)",
 public:
 	int interval() const { return 50; };
 
-	bool shine(const QColor& newColor, QList<QRgb>& colors)
+	bool shine(const QColor& newColor, QList<QRgba64>& colors)
 	{
 		bool changed = false;
 		for (int i = 0; i < colors.size(); i++)
 		{
-			QRgb rgb = Settings::isLedEnabled(i) ? newColor.rgb() : 0;
+			QRgba64 rgb = Settings::isLedEnabled(i) ? newColor.rgba64() : qRgba64(0);
 			changed = changed || (colors[i] != rgb);
 			colors[i] = rgb;
 		}
@@ -134,7 +134,7 @@ public:
 		m_rnd.seed(QTime(0, 0, 0).secsTo(QTime::currentTime()));
 	};
 
-	bool shine(const QColor& newColor, QList<QRgb>& colors) {
+	bool shine(const QColor& newColor, QList<QRgba64>& colors) {
 		if (colors.size() < 2)
 			return false;
 
@@ -189,7 +189,7 @@ public:
 		{
 			QColor color(newColor);
 			color.setHsl(color.hue(), color.saturation(), m_lightness[i]);
-			colors[i] = Settings::isLedEnabled(i) ? color.rgb() : 0;
+			colors[i] = Settings::isLedEnabled(i) ? color.rgba64() : qRgba64(0);
 		}
 		return true;
 	};
@@ -205,7 +205,7 @@ private:
 
 DECLARE_LAMP(RGBLife, "RGB is Life",
 public:
-	bool shine(const QColor& newColor, QList<QRgb>& colors)
+	bool shine(const QColor& newColor, QList<QRgba64>& colors)
 	{
 		bool changed = false;
 		const int degrees = 360 / colors.size();
@@ -214,7 +214,7 @@ public:
 		{
 			QColor color(newColor);
 			color.setHsl(color.hue() + degrees * i + step, color.saturation(), color.lightness());
-			QRgb rgb = Settings::isLedEnabled(i) ? color.rgb() : 0;
+			QRgba64 rgb = Settings::isLedEnabled(i) ? color.rgba64() : qRgba64(0);
 			changed = changed || (colors[i] != rgb);
 			colors[i] = rgb;
 		}

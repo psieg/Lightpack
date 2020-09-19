@@ -100,24 +100,22 @@ void AbstractLedDevice::updateDeviceSettings()
 	All modifications are made over extended 12bit RGB, so \code outColors \endcode will contain 12bit
 	RGB instead of 8bit.
 */
-void AbstractLedDevice::applyColorModifications(const QList<QRgb> &inColors, QList<StructRgb> &outColors) {
+void AbstractLedDevice::applyColorModifications(const QList<QRgba64> &inColors, QList<StructRgb> &outColors) {
 
 	const bool isApplyWBAdjustments = m_wbAdjustments.count() == inColors.count();
 
 	for(int i = 0; i < inColors.count(); i++) {
 
-		//renormalize to 12bit
-		const constexpr double k = 4095/255.0;
-		outColors[i].r = qRed(inColors[i]) * k;
-		outColors[i].g = qGreen(inColors[i]) * k;
-		outColors[i].b = qBlue(inColors[i]) * k;
+		outColors[i].r = inColors[i].red();
+		outColors[i].g = inColors[i].green();
+		outColors[i].b = inColors[i].blue();
 
 		PrismatikMath::gammaCorrection(m_gamma, outColors[i]);
 	}
 
 	const StructLab avgColor = PrismatikMath::toLab(PrismatikMath::avgColor(outColors));
 
-	const double ampCoef = m_ledMilliAmps / (4095.0 * 3.0) / 1000.0;
+	const double ampCoef = m_ledMilliAmps / (65535.0 * 3.0) / 1000.0;
 	double estimatedTotalAmps = 0.0;
 
 	for (int i = 0; i < outColors.count(); ++i) {
@@ -150,7 +148,7 @@ void AbstractLedDevice::applyColorModifications(const QList<QRgb> &inColors, QLi
 			outColors[i].b *= m_wbAdjustments[i].blue;
 		}
 		if (m_brightnessCap < SettingsScope::Profile::Device::BrightnessCapMax) {
-			const double bcapFactor = (m_brightnessCap / 100.0 * 4095 * 3) / (outColors[i].r + outColors[i].g + outColors[i].b);
+			const double bcapFactor = (m_brightnessCap / 100.0 * 65535 * 3) / (outColors[i].r + outColors[i].g + outColors[i].b);
 			if (bcapFactor < 1.0) {
 				outColors[i].r *= bcapFactor;
 				outColors[i].g *= bcapFactor;
@@ -168,5 +166,34 @@ void AbstractLedDevice::applyColorModifications(const QList<QRgb> &inColors, QLi
 			color.g *= powerRatio;
 			color.b *= powerRatio;
 		}
+	}
+
+	double carryR = 0;
+	double carryG = 0;
+	double carryB = 0;
+
+	for (int i = 0; i < outColors.count(); ++i)	{
+		double tempR = outColors[i].r + carryR;
+		double tempG = outColors[i].g + carryG;
+		double tempB = outColors[i].b + carryB;
+
+		const constexpr double k = 65535 / 255.0;
+		const constexpr double kinv = 255.0 / 65535;
+
+		if ((tempR * kinv) > 255)	outColors[i].r = 255 << 8;
+		else if (tempR < 0)			outColors[i].r = 0;
+		else						outColors[i].r = (int)(tempR * kinv + 0.5) << 8;
+
+		if ((tempG * kinv) > 255)	outColors[i].g = 255 << 8;
+		else if (tempG < 0)			outColors[i].g = 0;
+		else						outColors[i].g = (int)(tempG * kinv + 0.5) << 8;
+
+		if ((tempB * kinv) > 255)	outColors[i].b = 255 << 8;
+		else if (tempB < 0) 		outColors[i].b = 0;
+		else						outColors[i].b = (int)(tempB * kinv + 0.5) << 8;
+
+		carryR = tempR - ((double)(outColors[i].r >> 8) * k);
+		carryG = tempG - ((double)(outColors[i].g >> 8) * k);
+		carryB = tempB - ((double)(outColors[i].b >> 8) * k);
 	}
 }

@@ -27,6 +27,7 @@
 
 #include <QSharedPointer>
 #include <QColor>
+#include <QRgba64>
 #include <QTimer>
 #include "src/GrabWidget.hpp"
 #include "calculations.hpp"
@@ -90,6 +91,7 @@ public:
 	virtual ~GrabberBase() {}
 
 	virtual const char * name() const = 0;
+	virtual void setGammaDecodeValue(double value);
 
 public slots:
 	virtual void startGrabbing();
@@ -124,6 +126,7 @@ protected slots:
 
 	virtual bool isReallocationNeeded(const QList< ScreenInfo > &grabScreens) const;
 
+
 protected:
 	const GrabbedScreen * screenOfRect(const QRect &rect) const;
 
@@ -141,4 +144,5 @@ protected:
 	int grabScreensCount;
 	QList<GrabbedScreen> _screensWithWidgets;
 	QScopedPointer<QTimer> m_timer;
+	quint16 gammaDecodeArray[256];
 };

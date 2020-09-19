@@ -244,6 +244,15 @@ void GrabManager::onGrabberStateChangeRequested(bool isStartRequested) {
 #endif
 }
 
+void GrabManager::onDeviceGammaChanged(double value)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+	if (m_grabber) {
+		m_grabber->setGammaDecodeValue(value);
+		calcGammaEncodeArray(value);
+	}
+}
+
 void GrabManager::onGrabSlowdownChanged(int ms)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << ms;
@@ -421,22 +430,15 @@ void GrabManager::handleGrabbedColors()
 	int avgR = 0, avgG = 0, avgB = 0;
 	int countGrabEnabled = 0;
 
-	if (m_isApplyColorTemperature)
-	{
-		PrismatikMath::applyColorTemperature(m_colorsProcessing, m_colorTemperature, m_gamma);
-	}
-	else if (m_isApplyBlueLightReduction && m_blueLightClient)
-		m_blueLightClient->apply(m_colorsProcessing, SettingsScope::Profile::Grab::GammaDefault);
-
 	if (m_avgColorsOnAllLeds)
 	{
 		for (int i = 0; i < m_ledWidgets.size(); i++)
 		{
 			if (m_ledWidgets[i]->isAreaEnabled())
 			{
-				avgR += qRed(m_colorsProcessing[i]);
-				avgG += qGreen(m_colorsProcessing[i]);
-				avgB += qBlue(m_colorsProcessing[i]);
+				avgR += m_colorsProcessing[i].red();
+				avgG += m_colorsProcessing[i].green();
+				avgB += m_colorsProcessing[i].blue();
 				countGrabEnabled++;
 			}
 		}
@@ -451,21 +453,38 @@ void GrabManager::handleGrabbedColors()
 		{
 			if (m_ledWidgets[ledIndex]->isAreaEnabled())
 			{
-				m_colorsProcessing[ledIndex] = qRgb(avgR, avgG, avgB);
+				m_colorsProcessing[ledIndex] = qRgba64(avgR, avgG, avgB, 0);
 			}
 		}
 	}
 
+	// encode color values with gamma
+	for (int ledIndex = 0; ledIndex < m_ledWidgets.size(); ledIndex++)
+	{
+		if (m_ledWidgets[ledIndex]->isAreaEnabled())
+		{
+			quint16 r = m_gammaEncodeArray[m_colorsProcessing[ledIndex].red()];
+			quint16 g = m_gammaEncodeArray[m_colorsProcessing[ledIndex].green()];
+			quint16 b = m_gammaEncodeArray[m_colorsProcessing[ledIndex].blue()];
+			m_colorsProcessing[ledIndex] = qRgba64(r, g, b, 0);
+		}
+	}
+
+	if (m_isApplyColorTemperature)
+		PrismatikMath::applyColorTemperature(m_colorsProcessing, m_colorTemperature, m_gamma);
+	else if (m_isApplyBlueLightReduction && m_blueLightClient)
+		m_blueLightClient->apply(m_colorsProcessing, SettingsScope::Profile::Grab::GammaDefault);
+
 	for (int i = 0; i < m_ledWidgets.size(); i++)
 	{
-		QRgb newColor = m_colorsProcessing[i];
+		QRgba64 newColor = m_colorsProcessing[i];
 		if (m_overBrighten) {
-			int dRed = qRed(newColor);
-			int dGreen = qGreen(newColor);
-			int dBlue = qBlue(newColor);
+			int dRed = newColor.red();
+			int dGreen = newColor.green();
+			int dBlue = newColor.blue();
 			int highest = qMax(dRed, qMax(dGreen, dBlue));
-			double scaleFactor = qMin((100 + 5 * m_overBrighten) / 100.0, 255.0 / highest);
-			newColor = qRgb(dRed * scaleFactor, dGreen * scaleFactor, dBlue * scaleFactor);
+			double scaleFactor = qMin((100 + 5 * m_overBrighten) / 100.0, 65535.0 / highest);
+			newColor = qRgba64(dRed * scaleFactor, dGreen * scaleFactor, dBlue * scaleFactor, 0);
 		}
 
 		if (m_colorsCurrent[i] != newColor)
@@ -658,6 +677,13 @@ GrabberBase *GrabManager::initGrabber(GrabberBase * grabber) {
 	return grabber;
 }
 
+void GrabManager::calcGammaEncodeArray(double gamma)
+{
+	double gammaInv = 1 / gamma;
+	for (int i = 0; i < 65536; i++) 
+		m_gammaEncodeArray[i] = 65535 * pow((double)i / 65535.0, gammaInv);
+}
+
 #ifdef D3D10_GRAB_SUPPORT
 void GrabManager::reinitDx1011Grabber() {
 	QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -709,8 +735,8 @@ void GrabManager::initColorLists(int numberOfLeds)
 
 	for (int i = 0; i < numberOfLeds; i++)
 	{
-		m_colorsCurrent << 0;
-		m_colorsNew		<< 0;
+		m_colorsCurrent << qRgba64(0);
+		m_colorsNew		<< qRgba64(0);
 	}
 }
 

@@ -53,13 +53,13 @@ signals:
 		\param ok is command completed successfully
 	*/
 	void commandCompleted(bool ok);
-	void colorsUpdated(QList<QRgb> colors);
+	void colorsUpdated(QList<QRgba64> colors);
 
 public slots:
 	virtual const QString name() const = 0;
 	virtual void open() = 0;
 	virtual void close() = 0;
-	virtual void setColors(const QList<QRgb> & colors) = 0;
+	virtual void setColors(const QList<QRgba64> & colors) = 0;
 	virtual void switchOffLeds() = 0;
 
 	/*!
@@ -95,7 +95,7 @@ public slots:
 	virtual void setUsbPowerLedDisabled(bool isDisabled) { Q_UNUSED(isDisabled) emit commandCompleted(true); };
 
 protected:
-	virtual void applyColorModifications(const QList<QRgb> & inColors, QList<StructRgb> & outColors);
+	virtual void applyColorModifications(const QList<QRgba64> & inColors, QList<StructRgb> & outColors);
 
 protected:
 	QString m_colorSequence;
@@ -109,6 +109,6 @@ protected:
 
 	QList<WBAdjustment> m_wbAdjustments;
 
-	QList<QRgb> m_colorsSaved;
+	QList<QRgba64> m_colorsSaved;
 	QList<StructRgb> m_colorsBuffer;
 };

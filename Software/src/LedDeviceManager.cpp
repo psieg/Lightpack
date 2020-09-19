@@ -118,7 +118,7 @@ void LedDeviceManager::switchOnLeds()
 		emit ledDeviceSetColors(m_savedColors);
 }
 
-void LedDeviceManager::setColors(const QList<QRgb> & colors)
+void LedDeviceManager::setColors(const QList<QRgba64> & colors)
 {
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO << "Is last command completed:" << m_isLastCommandCompleted
 					<< " m_backlightStatus = " << m_backlightStatus;
@@ -528,10 +528,10 @@ void LedDeviceManager::connectSignalSlotsLedDevice()
 
 	connect(m_ledDevice, SIGNAL(firmwareVersion(QString)),			this, SIGNAL(firmwareVersion(QString)),						Qt::QueuedConnection);
 	connect(m_ledDevice, SIGNAL(firmwareVersionUnofficial(int)),	this, SIGNAL(firmwareVersionUnofficial(int)),				Qt::QueuedConnection);
-	connect(m_ledDevice, SIGNAL(colorsUpdated(QList<QRgb>)),		this, SIGNAL(setColors_VirtualDeviceCallback(QList<QRgb>)),	Qt::QueuedConnection);
+	connect(m_ledDevice, SIGNAL(colorsUpdated(QList<QRgba64>)),		this, SIGNAL(setColors_VirtualDeviceCallback(QList<QRgba64>)),	Qt::QueuedConnection);
 
 	connect(this, SIGNAL(ledDeviceOpen()),								m_ledDevice, SLOT(open()),										Qt::QueuedConnection);
-	connect(this, SIGNAL(ledDeviceSetColors(QList<QRgb>)),				m_ledDevice, SLOT(setColors(QList<QRgb>)),						Qt::QueuedConnection);
+	connect(this, SIGNAL(ledDeviceSetColors(QList<QRgba64>)),			m_ledDevice, SLOT(setColors(QList<QRgba64>)),				Qt::QueuedConnection);
 	connect(this, SIGNAL(ledDeviceOffLeds()),							m_ledDevice, SLOT(switchOffLeds()),								Qt::QueuedConnection);
 	connect(this, SIGNAL(ledDeviceSetUsbPowerLedDisabled(bool)),		m_ledDevice, SLOT(setUsbPowerLedDisabled(bool)),				Qt::QueuedConnection);
 	connect(this, SIGNAL(ledDeviceSetRefreshDelay(int)),				m_ledDevice, SLOT(setRefreshDelay(int)),						Qt::QueuedConnection);
@@ -562,10 +562,10 @@ void LedDeviceManager::disconnectSignalSlotsLedDevice()
 
 	disconnect(m_ledDevice, SIGNAL(firmwareVersion(QString)),		this, SIGNAL(firmwareVersion(QString)));
 	disconnect(m_ledDevice, SIGNAL(firmwareVersionUnofficial(int)), this, SIGNAL(firmwareVersionUnofficial(int)));
-	disconnect(m_ledDevice, SIGNAL(colorsUpdated(QList<QRgb>)),		this, SIGNAL(setColors_VirtualDeviceCallback(QList<QRgb>)));
+	disconnect(m_ledDevice, SIGNAL(colorsUpdated(QList<QRgba64>)),		this, SIGNAL(setColors_VirtualDeviceCallback(QList<QRgba64>)));
 
 	disconnect(this, SIGNAL(ledDeviceOpen()),								m_ledDevice, SLOT(open()));
-	disconnect(this, SIGNAL(ledDeviceSetColors(QList<QRgb>)),				m_ledDevice, SLOT(setColors(QList<QRgb>)));
+	disconnect(this, SIGNAL(ledDeviceSetColors(QList<QRgba64>)),			m_ledDevice, SLOT(setColors(QList<QRgba64>)));
 	disconnect(this, SIGNAL(ledDeviceOffLeds()),							m_ledDevice, SLOT(switchOffLeds()));
 	disconnect(this, SIGNAL(ledDeviceSetUsbPowerLedDisabled(bool)),			m_ledDevice, SLOT(setUsbPowerLedDisabled(bool)));
 	disconnect(this, SIGNAL(ledDeviceSetRefreshDelay(int)),					m_ledDevice, SLOT(setRefreshDelay(int)));

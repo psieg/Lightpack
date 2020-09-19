@@ -393,6 +393,12 @@ VOID FreeRestrictedSD(PVOID ptr) {
 	{
 		PrismatikMath::applyColorTemperature(colors, _client->getSmoothenedColorTemperature(), gamma);
 	}
+
+
+	void NightLight::apply(QList<QRgba64>& colors, const double gamma)
+	{
+		PrismatikMath::applyColorTemperature(colors, _client->getSmoothenedColorTemperature(), gamma);
+	}
 #endif // NIGHTLIGHT_SUPPORT
 
 	bool GammaRamp::isSupported()
@@ -425,6 +431,22 @@ VOID FreeRestrictedSD(PVOID ptr) {
 		return true;
 	}
 
+	void GammaRamp::interpolateGamma()
+	{
+		// interpolate 8 bit input to 16 bit input
+		for (int channel = 0; channel < 3; channel++) {
+			int pos = 0;
+			for (int value = 0; value < 255; value++) {
+				int delta = _gammaArray[channel][value + 1] - _gammaArray[channel][value];
+				for (int i = 0; i < 257; i++) {
+					_gammaArray16[channel][pos] = _gammaArray[channel][value] + (delta * i) / 257;
+					pos++;
+				}
+			}
+			_gammaArray16[channel][pos] = _gammaArray[channel][255];
+		}
+	}
+
 	void GammaRamp::apply(QList<QRgb>& colors, const double/*gamma*/)
 	{
 		HDC dc = NULL;
@@ -448,6 +470,35 @@ VOID FreeRestrictedSD(PVOID ptr) {
 			blue = _gammaArray[2][blue] >> 8;
 
 			color = qRgb(red, green, blue);
+		}
+
+		DeleteObject(dc);
+	}
+
+	void GammaRamp::apply(QList<QRgba64>& colors, const double/*gamma*/)
+	{
+		HDC dc = NULL;
+
+		// Reload the gamma ramp every 15 seconds only.
+		// There seems to be a memory leak somewhere in the API and we don't
+		// expect the ramp to change every frame.
+		if (time(nullptr) - _gammaAge > 15) {
+			if (!loadGamma(&_gammaArray, &dc))
+				return;
+			_gammaAge = time(nullptr);
+			interpolateGamma();
+		}
+
+		for (QRgba64& color : colors) {
+			int red = color.red();
+			int green = color.green();
+			int blue = color.blue();
+
+			red = _gammaArray16[0][red];
+			green = _gammaArray16[1][green];
+			blue = _gammaArray16[2][blue];
+
+			color = qRgba64(red, green, blue, 0);
 		}
 
 		DeleteObject(dc);

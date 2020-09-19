@@ -48,11 +48,11 @@ signals:
 	void ioDeviceSuccess(bool isSuccess);
 	void firmwareVersion(const QString & fwVersion);
 	void firmwareVersionUnofficial(const int version);
-	void setColors_VirtualDeviceCallback(const QList<QRgb> & colors);
+	void setColors_VirtualDeviceCallback(const QList<QRgba64> & colors);
 
 	// This signals are directly connected to ILedDevice. Don't use outside.
 	void ledDeviceOpen();
-	void ledDeviceSetColors(const QList<QRgb> & colors);
+	void ledDeviceSetColors(const QList<QRgba64> & colors);
 	void ledDeviceOffLeds();
 	void ledDeviceSetUsbPowerLedDisabled(bool isDisabled);
 	void ledDeviceSetRefreshDelay(int value);
@@ -74,7 +74,7 @@ public slots:
 	void recreateLedDevice();
 
 	// This slots are protected from the overflow of queries
-	void setColors(const QList<QRgb> & colors);
+	void setColors(const QList<QRgba64> & colors);
 	void switchOffLeds();
 	void switchOnLeds();
 	void setUsbPowerLedDisabled(bool isDisabled);
@@ -114,7 +114,7 @@ private:
 
 	QList<LedDeviceCommands::Cmd> m_cmdQueue;
 
-	QList<QRgb> m_savedColors;
+	QList<QRgba64> m_savedColors;
 	bool m_savedUsbPowerLedDisabled;
 	int m_savedRefreshDelay;
 	int m_savedColorDepth;

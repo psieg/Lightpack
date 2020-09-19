@@ -43,7 +43,7 @@ public:
 
 protected slots:
 	void turnLightOn(int id);
-	void turnLightsOn(QRgb color);
+	void turnLightsOn(QRgba64 color);
 	void turnLightsOff();
 
 

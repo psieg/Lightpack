@@ -496,7 +496,7 @@ void ApiServer::clientProcessCommands()
 			API_DEBUG_OUT << CmdGetColors;
 			result = ApiServer::CmdResultGetColors;
 
-			QList<QRgb> curentColors = lightpack->GetColors();
+			QList<QRgba64> curentColors = lightpack->GetColors();
 
 			for (int i = 0; i < curentColors.count(); i++)
 			{

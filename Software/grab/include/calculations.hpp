@@ -27,11 +27,13 @@
 
 #include <QRect>
 #include <QRgb>
+#include <QRgba64>
 #include <QList>
 #include "common/BufferFormat.h"
 
 namespace Grab {
 	namespace Calculations {
 		QRgb calculateAvgColor(const unsigned char * const buffer, BufferFormat bufferFormat, const size_t pitch, const QRect &rect);
+		QRgba64 calculateAvgColor(const unsigned char* const buffer, BufferFormat bufferFormat, const size_t pitch, const QRect& rect, const quint16* gamma);
 	}
 }

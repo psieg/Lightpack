@@ -41,7 +41,7 @@ int LedDeviceWarls::maxLedsCount()
 	return MaximumNumberOfLeds::Warls;
 }
 
-void LedDeviceWarls::setColors(const QList<QRgb> & colors)
+void LedDeviceWarls::setColors(const QList<QRgba64> & colors)
 {
 	resizeColorsBuffer(colors.count());
 
@@ -56,10 +56,10 @@ void LedDeviceWarls::setColors(const QList<QRgb> & colors)
 		{
 			StructRgb color = m_colorsBuffer[i];
 
-			// Reduce 12-bit colour information
-			color.r = color.r >> 4;
-			color.g = color.g >> 4;
-			color.b = color.b >> 4;
+			// Reduce 16-bit colour information
+			color.r = color.r >> 8;
+			color.g = color.g >> 8;
+			color.b = color.b >> 8;
 
 			m_writeBuffer.append(i);
 			m_writeBuffer.append(color.r);
@@ -81,7 +81,7 @@ void LedDeviceWarls::switchOffLeds()
 	m_colorsSaved.clear();
 
 	for (int i = 0; i < count; i++) {
-		m_colorsSaved << 0;
+		m_colorsSaved << qRgba64(0);
 	}
 
 	m_writeBuffer.clear();
@@ -122,7 +122,7 @@ void LedDeviceWarls::resizeColorsBuffer(int buffSize)
 	for (int i = 0; i < buffSize; i++)
 	{
 		m_colorsBuffer << StructRgb();
-		m_colorsSaved << 0;
+		m_colorsSaved << qRgba64(0);
 	}
 
 	reinitBufferHeader();

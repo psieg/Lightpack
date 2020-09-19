@@ -105,7 +105,7 @@ LedDeviceAlienFx::~LedDeviceAlienFx()
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "destroy LedDeviceAlienFx : ILedDevice complete";
 }
 
-void LedDeviceAlienFx::setColors(const QList<QRgb> & colors)
+void LedDeviceAlienFx::setColors(const QList<QRgba64> & colors)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO;
 	if (m_isInitialized)
@@ -141,8 +141,8 @@ void LedDeviceAlienFx::setColors(const QList<QRgb> & colors)
 void LedDeviceAlienFx::switchOffLeds()
 {
 	// TODO: fill it with current leds count
-	QList<QRgb> blackColor;
-	blackColor << 0;
+	QList<QRgba64> blackColor;
+	blackColor << qRgba64(0);
 	setColors(blackColor);
 }
 
