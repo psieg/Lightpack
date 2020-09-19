@@ -40,13 +40,13 @@ LedDeviceVirtual::LedDeviceVirtual(QObject * parent) : AbstractLedDevice(parent)
 	m_brightness = Settings::getDeviceBrightness();
 }
 
-void LedDeviceVirtual::setColors(const QList<QRgb> & colors)
+void LedDeviceVirtual::setColors(const QList<QRgba64> & colors)
 {
 	if(colors.size()> 0)
 	{
 		m_colorsSaved = colors;
 
-		QList<QRgb> callbackColors;
+		QList<QRgba64> callbackColors;
 
 		resizeColorsBuffer(colors.count());
 
@@ -54,7 +54,7 @@ void LedDeviceVirtual::setColors(const QList<QRgb> & colors)
 
 		for (int i = 0; i < m_colorsBuffer.count(); i++)
 		{
-			callbackColors.append(qRgb(m_colorsBuffer[i].r>>4, m_colorsBuffer[i].g>>4, m_colorsBuffer[i].b>>4));
+			callbackColors.append(qRgba64(m_colorsBuffer[i].r<<4, m_colorsBuffer[i].g<<4, m_colorsBuffer[i].b<<4, 0));
 		}
 
 		emit colorsUpdated(callbackColors);
@@ -68,7 +68,7 @@ void LedDeviceVirtual::switchOffLeds()
 	m_colorsSaved.clear();
 
 	for (int i = 0; i < count; i++) {
-		m_colorsSaved << 0;
+		m_colorsSaved << qRgba64(0);
 	}
 	emit colorsUpdated(m_colorsSaved);
 	emit commandCompleted(true);

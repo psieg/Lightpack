@@ -26,7 +26,7 @@
 #pragma once
 
 #include <QObject>
-#include <QColor>
+#include <QRgba64>
 #include <QTimer>
 #include <QElapsedTimer>
 #include "LiquidColorGenerator.hpp"
@@ -40,7 +40,7 @@ public:
 	~MoodLampManager();
 
 signals:
-	void updateLedsColors(const QList<QRgb> & colors);
+	void updateLedsColors(const QList<QRgba64> & colors);
 	void lampList(const QList<MoodLampLampInfo> &, int);
 	void moodlampFrametime(const double frameMs);
 
@@ -71,7 +71,7 @@ private:
 	MoodLampBase* m_lamp{ nullptr };
 
 	LiquidColorGenerator m_generator;
-	QList<QRgb> m_colors;
+	QList<QRgba64> m_colors;
 
 	bool	m_isMoodLampEnabled;
 	QColor  m_currentColor;

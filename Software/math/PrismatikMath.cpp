@@ -50,9 +50,9 @@ namespace PrismatikMath
 
 	void gammaCorrection(double gamma, StructRgb & eRgb)
 	{
-		eRgb.r = 4095 * pow(eRgb.r / 4095.0, gamma);
-		eRgb.g = 4095 * pow(eRgb.g / 4095.0, gamma);
-		eRgb.b = 4095 * pow(eRgb.b / 4095.0, gamma);
+		eRgb.r = 65535 * pow(eRgb.r / 65535.0, gamma);
+		eRgb.g = 65535 * pow(eRgb.g / 65535.0, gamma);
+		eRgb.b = 65535 * pow(eRgb.b / 65535.0, gamma);
 	}
 
 	void brightnessCorrection(unsigned int brightness, StructRgb & eRgb) {
@@ -74,13 +74,24 @@ namespace PrismatikMath
 		gamma = 1.0 / gamma; // encoding
 		for (QRgb& color : colors)
 		{
-			quint8 r = ::pow((qRed(color)   * wp.r) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
-			quint8 g = ::pow((qGreen(color) * wp.g) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
-			quint8 b = ::pow((qBlue(color)  * wp.b) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
+			quint8 r = ::pow(((double)qRed(color)   * wp.r) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
+			quint8 g = ::pow(((double)qGreen(color) * wp.g) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
+			quint8 b = ::pow(((double)qBlue(color)  * wp.b) / (double)USHRT_MAX, gamma) * UCHAR_MAX;
 			color = qRgb(r, g, b);
 		}
 	}
 
+	void applyColorTemperature(QList<QRgba64>& colors, const quint16 colorTemperature, double gamma) {
+		StructRgb wp = whitePoint(colorTemperature);
+		gamma = 1.0 / gamma; // encoding
+		for (QRgba64& color : colors)
+		{
+			quint16 r = ::pow(((double)color.red()   * wp.r) / (double)(65535 * 255), gamma) * 65535;
+			quint16 g = ::pow(((double)color.green() * wp.g) / (double)(65535 * 255), gamma) * 65535;
+			quint16 b = ::pow(((double)color.blue()  * wp.b) / (double)(65535 * 255), gamma) * 65535;
+			color = qRgba64(r, g, b, 0);
+		}
+	}
 
 	int getValueHSV(const QRgb rgb) {
 		return max(rgb);
@@ -194,10 +205,10 @@ namespace PrismatikMath
 	}
 
 	StructXyz toXyz(const StructRgb & rgb) {
-		//12bit RGB from 0 to 4095
-		double r = ( rgb.r / 4095.0 );
-		double g = ( rgb.g / 4095.0 );
-		double b = ( rgb.b / 4095.0 );
+		//16bit RGB from 0 to 65535
+		double r = ( rgb.r / 65535.0 );
+		double g = ( rgb.g / 65535.0);
+		double b = ( rgb.b / 65535.0);
 
 		if ( r > 0.04045 )
 			r = pow( (r + 0.055)/1.055, 2.4);
@@ -319,9 +330,9 @@ namespace PrismatikMath
 
 		StructRgb eRgb;
 
-		eRgb.r = round(r*4095);
-		eRgb.g = round(g*4095);
-		eRgb.b = round(b*4095);
+		eRgb.r = round(r * 65535);
+		eRgb.g = round(g * 65535);
+		eRgb.b = round(b * 65535);
 
 		return eRgb;
 	}

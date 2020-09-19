@@ -27,6 +27,7 @@
 
 #include <QObject>
 #include <QColor>
+#include <QRgba64>
 
 class MoodLampBase;
 
@@ -54,7 +55,7 @@ public:
 
 	virtual void init() {};
 	virtual int interval() const { return DefaultInterval; };
-	virtual bool shine(const QColor& newColor, QList<QRgb>& colors) = 0;
+	virtual bool shine(const QColor& newColor, QList<QRgba64>& colors) = 0;
 protected:
 	size_t m_frames{ 0 };
 private:

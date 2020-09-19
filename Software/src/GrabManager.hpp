@@ -45,7 +45,7 @@ public:
 	virtual ~GrabManager();
 
 signals:
-	void updateLedsColors(const QList<QRgb> & colors);
+	void updateLedsColors(const QList<QRgba64> & colors);
 	void ambilightTimeOfUpdatingColors(double ms);
 	void changeScreen();
 	void onSessionChange(int change);
@@ -80,6 +80,7 @@ public slots:
 	void setColoredLedWidgets(bool state);
 	void setWhiteLedWidgets(bool state);
 	void onGrabberStateChangeRequested(bool isStartRequested);
+	void onDeviceGammaChanged(double value);
 
 private slots:
 	void handleGrabbedColors();
@@ -96,6 +97,7 @@ private:
 	GrabberBase *queryGrabber(Grab::GrabberType grabber);
 	void initGrabbers();
 	GrabberBase *initGrabber(GrabberBase *grabber);
+	void calcGammaEncodeArray(double gamma);
 #ifdef D3D10_GRAB_SUPPORT
 	void reinitDx1011Grabber();
 #endif
@@ -119,12 +121,12 @@ private:
 	QTimer *m_timerFakeGrab;
 	QWidget *m_parentWidget;
 	QList<GrabWidget *> m_ledWidgets;
-	QList<QRgb> m_grabResult;
+	QList<QRgba64> m_grabResult;
 	const static QColor m_backgroundAndTextColors[10][2];
 
-	QList<QRgb> m_colorsCurrent;
-	QList<QRgb> m_colorsNew;
-	QList<QRgb> m_colorsProcessing;
+	QList<QRgba64> m_colorsCurrent;
+	QList<QRgba64> m_colorsNew;
+	QList<QRgba64> m_colorsProcessing;
 
 	QRect m_screenSavedRect;
 	int m_screenSavedIndex;
@@ -145,4 +147,6 @@ private:
 
 	bool m_isGrabWidgetsVisible;
 	GrabberContext * m_grabberContext;
+
+	quint16 m_gammaEncodeArray[65536];
 };

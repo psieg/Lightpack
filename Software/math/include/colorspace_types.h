@@ -28,10 +28,10 @@
 #define COLORSPACE_TYPES_H
 
 /*!
-	36bit RGB, 12 bit per channel!
+	48bit RGB, 16 bit per channel!
 	*/
 struct StructRgb {
-	unsigned r, g, b;
+	unsigned int r, g, b;
 	StructRgb() { r = g = b = 0;}
 };
 

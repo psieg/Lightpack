@@ -85,7 +85,7 @@ void GlobalColorCoefPage::initializePage()
 
 	resetDeviceSettings();
 	onCoefValueChanged();
-	turnLightsOn(qRgb(255, 255, 255));
+	turnLightsOn(qRgba64(65535, 65535, 65535, 0));
 }
 
 bool GlobalColorCoefPage::validatePage()

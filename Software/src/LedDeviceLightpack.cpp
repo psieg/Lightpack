@@ -63,7 +63,7 @@ LedDeviceLightpack::~LedDeviceLightpack()
 	closeDevices();
 }
 
-void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
+void LedDeviceLightpack::setColors(const QList<QRgba64> & colors)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << Qt::hex << (colors.isEmpty() ? -1 : colors.first());
@@ -109,15 +109,15 @@ void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
 		buffIndex = WRITE_BUFFER_INDEX_DATA_START + kLedRemap[i % 10] * kSizeOfLedColor;
 
 		// Send main 8 bits for compability with existing devices
-		m_writeBuffer[buffIndex++] = (color.r & 0x0FF0) >> 4;
-		m_writeBuffer[buffIndex++] = (color.g & 0x0FF0) >> 4;
-		m_writeBuffer[buffIndex++] = (color.b & 0x0FF0) >> 4;
+		m_writeBuffer[buffIndex++] = (color.r & 0xFF00) >> 8;
+		m_writeBuffer[buffIndex++] = (color.g & 0xFF00) >> 8;
+		m_writeBuffer[buffIndex++] = (color.b & 0xFF00) >> 8;
 
 		// Send over 4 bits for devices revision >= 6
 		// All existing devices ignore it
-		m_writeBuffer[buffIndex++] = (color.r & 0x000F);
-		m_writeBuffer[buffIndex++] = (color.g & 0x000F);
-		m_writeBuffer[buffIndex++] = (color.b & 0x000F);
+		m_writeBuffer[buffIndex++] = (color.r & 0x00F0) >> 4;
+		m_writeBuffer[buffIndex++] = (color.g & 0x00F0) >> 4;
+		m_writeBuffer[buffIndex++] = (color.b & 0x00F0) >> 4;
 
 		if ((i+1) % kLedsPerDevice == 0 || i == m_colorsBuffer.size() - 1) {
 			if (m_devices.empty() || !writeBufferToDeviceWithCheck(CMD_UPDATE_LEDS, m_devices[(i+kLedsPerDevice)/kLedsPerDevice - 1])) {
@@ -149,7 +149,7 @@ void LedDeviceLightpack::switchOffLeds()
 	if (m_colorsSaved.empty())
 	{
 		for (size_t i = 0; i < maxLedsCount(); ++i)
-			m_colorsSaved << 0;
+			m_colorsSaved << qRgba64(0);
 	} else {
 		for (int i = 0; i < m_colorsSaved.count(); i++)
 			m_colorsSaved[i] = 0;

@@ -41,7 +41,7 @@ int LedDeviceDnrgb::maxLedsCount()
 	return MaximumNumberOfLeds::Dnrgb;
 }
 
-void LedDeviceDnrgb::setColors(const QList<QRgb> & colors)
+void LedDeviceDnrgb::setColors(const QList<QRgba64> & colors)
 {
 	bool ok = true;
 
@@ -76,10 +76,10 @@ void LedDeviceDnrgb::setColors(const QList<QRgb> & colors)
 		{
 			StructRgb color = m_colorsBuffer[i];
 
-			// Reduce 12-bit colour information
-			color.r = color.r >> 4;
-			color.g = color.g >> 4;
-			color.b = color.b >> 4;
+			// Reduce 16-bit colour information
+			color.r = color.r >> 8;
+			color.g = color.g >> 8;
+			color.b = color.b >> 8;
 
 			m_writeBuffer.append(color.r);
 			m_writeBuffer.append(color.g);
@@ -100,7 +100,7 @@ void LedDeviceDnrgb::switchOffLeds()
 	m_colorsSaved.clear();
 
 	for (int i = 0; i < count; i++) {
-		m_colorsSaved << 0;
+		m_colorsSaved << qRgba64(0);
 	}
 
 	// Send multiple buffers

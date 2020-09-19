@@ -36,7 +36,7 @@ public:
 
 public slots:
     const QString name() const;
-	void setColors(const QList<QRgb> & colors);
+	void setColors(const QList<QRgba64> & colors);
 	void switchOffLeds();
     void requestFirmwareVersion();
     int maxLedsCount();

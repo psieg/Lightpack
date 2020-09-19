@@ -29,6 +29,7 @@
 
 #include <QList>
 #include <QRgb>
+#include <QRgba64>
 
 class GrabWidget;
 
@@ -96,7 +97,7 @@ public:
 	}
 public:
 	QList<GrabWidget *> *grabWidgets;
-	QList<QRgb> *grabResult;
+	QList<QRgba64> *grabResult;
 
 
 private:

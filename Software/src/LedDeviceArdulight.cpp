@@ -76,10 +76,8 @@ void LedDeviceArdulight::close()
 	m_ArdulightDevice = NULL;
 }
 
-void LedDeviceArdulight::setColors(const QList<QRgb> & colors)
+void LedDeviceArdulight::setColors(const QList<QRgba64> & colors)
 {
-	DEBUG_MID_LEVEL << Q_FUNC_INFO << colors;
-
 	// Save colors for showing changes of the brightness
 	m_colorsSaved = colors;
 
@@ -88,9 +86,9 @@ void LedDeviceArdulight::setColors(const QList<QRgb> & colors)
 	applyColorModifications(colors, m_colorsBuffer);
 
 	for(int i=0; i < m_colorsBuffer.count(); i++) {
-		m_colorsBuffer[i].r = m_colorsBuffer[i].r >> 4;
-		m_colorsBuffer[i].g = m_colorsBuffer[i].g >> 4;
-		m_colorsBuffer[i].b = m_colorsBuffer[i].b >> 4;
+		m_colorsBuffer[i].r = m_colorsBuffer[i].r >> 8;
+		m_colorsBuffer[i].g = m_colorsBuffer[i].g >> 8;
+		m_colorsBuffer[i].b = m_colorsBuffer[i].b >> 8;
 		PrismatikMath::maxCorrection(254, m_colorsBuffer[i]);
 	}
 
@@ -150,7 +148,7 @@ void LedDeviceArdulight::switchOffLeds()
 	m_colorsSaved.clear();
 
 	for (int i = 0; i < count; i++)
-		m_colorsSaved << 0;
+		m_colorsSaved << qRgba64(0);
 
 	m_writeBuffer.clear();
 	m_writeBuffer.append(m_writeBufferHeader);

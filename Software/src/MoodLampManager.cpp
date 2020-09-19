@@ -190,7 +190,7 @@ void MoodLampManager::initColors(int numberOfLeds)
 	m_colors.clear();
 
 	for (int i = 0; i < numberOfLeds; i++)
-		m_colors << 0;
+		m_colors << qRgba64(0);
 }
 
 void MoodLampManager::requestLampList()

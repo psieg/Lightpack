@@ -27,6 +27,7 @@
 
 #include <QList>
 #include <QRgb>
+#include <QRgba64>
 #include <cmath>
 #include "colorspace_types.h"
 #include "../../common/defs.h"
@@ -43,6 +44,7 @@ namespace PrismatikMath
 	QRgb withValueHSV(const QRgb, int);
 	QRgb withChromaHSV(const QRgb, int);
 	void applyColorTemperature(QList<QRgb>&, const quint16, double gamma);
+	void applyColorTemperature(QList<QRgba64>&, const quint16, double gamma);
 	StructRgb whitePoint(const quint16 colorTemperature);
 	StructRgb avgColor(const QList<StructRgb> &);
 	StructXyz toXyz(const StructRgb &);

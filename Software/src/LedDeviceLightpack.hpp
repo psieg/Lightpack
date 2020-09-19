@@ -53,7 +53,7 @@ public slots:
 	virtual const QString name() const { return "lightpack"; }
 	virtual void open();
 	virtual void close();
-	virtual void setColors(const QList<QRgb> & colors);
+	virtual void setColors(const QList<QRgba64> & colors);
 	virtual void switchOffLeds();
 	virtual void setUsbPowerLedDisabled(bool isDisabled);
 	virtual void setRefreshDelay(int value);

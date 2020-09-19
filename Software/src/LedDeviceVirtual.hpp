@@ -40,7 +40,7 @@ public slots:
 	const QString name() const { return "virtual"; }
 	void open();
 	void close(){}
-	void setColors(const QList<QRgb> & colors);
+	void setColors(const QList<QRgba64> & colors);
 	void switchOffLeds();
 	void setRefreshDelay(int /*value*/);
 	void setColorDepth(int /*value*/);
