@@ -81,7 +81,7 @@ void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
 	resizeColorsBuffer(colors.count());
 
 	applyColorModifications(colors, m_colorsBuffer);
-
+	applyDithering(m_colorsBuffer, 8);
 
 	m_writeBuffer.clear();
 	m_writeBuffer.append(m_writeBufferHeader);
@@ -89,10 +89,6 @@ void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
 	for (int i = 0; i < m_colorsBuffer.count(); i++)
 	{
 		StructRgb color = m_colorsBuffer[i];
-
-		color.r = color.r >> 4;
-		color.g = color.g >> 4;
-		color.b = color.b >> 4;
 
 		if (m_colorSequence == "RBG")
 		{

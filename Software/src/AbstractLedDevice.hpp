@@ -96,6 +96,7 @@ public slots:
 
 protected:
 	virtual void applyColorModifications(const QList<QRgb> & inColors, QList<StructRgb> & outColors);
+	virtual void applyDithering(QList<StructRgb>& colors, int colorDepth);
 
 protected:
 	QString m_colorSequence;

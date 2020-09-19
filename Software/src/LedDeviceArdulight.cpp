@@ -86,11 +86,9 @@ void LedDeviceArdulight::setColors(const QList<QRgb> & colors)
 	resizeColorsBuffer(colors.count());
 
 	applyColorModifications(colors, m_colorsBuffer);
+	applyDithering(m_colorsBuffer, 8);
 
 	for(int i=0; i < m_colorsBuffer.count(); i++) {
-		m_colorsBuffer[i].r = m_colorsBuffer[i].r >> 4;
-		m_colorsBuffer[i].g = m_colorsBuffer[i].g >> 4;
-		m_colorsBuffer[i].b = m_colorsBuffer[i].b >> 4;
 		PrismatikMath::maxCorrection(254, m_colorsBuffer[i]);
 	}
 

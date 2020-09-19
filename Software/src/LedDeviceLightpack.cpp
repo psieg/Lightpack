@@ -92,6 +92,7 @@ void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
 	m_colorsSaved = colors;
 
 	applyColorModifications(colors, m_colorsBuffer);
+	applyDithering(m_colorsBuffer, 12);
 
 	// First write_buffer[0] == 0x00 - ReportID, i have problems with using it
 	// Second byte of usb buffer is command (write_buffer[1] == CMD_UPDATE_LEDS, see below)

@@ -169,33 +169,57 @@ void AbstractLedDevice::applyColorModifications(const QList<QRgb> &inColors, QLi
 			color.b *= powerRatio;
 		}
 	}
+}
+
+void AbstractLedDevice::applyDithering(QList<StructRgb>& colors, int colorDepth)
+{
+	unsigned int maxColorValueIn = 4095;
+	unsigned int maxColorValueOut = (1 << colorDepth) - 1;
+
+	double k = (double)maxColorValueIn / (double)maxColorValueOut;
 
 	double carryR = 0;
 	double carryG = 0;
 	double carryB = 0;
 
-	for (int i = 0; i < outColors.count(); ++i)	{
-		double tempR = outColors[i].r + carryR;
-		double tempG = outColors[i].g + carryG;
-		double tempB = outColors[i].b + carryB;
+	double meanIndR = 0;
+	double meanIndG = 0;
+	double meanIndB = 0;
 
-		const constexpr double k = 4095 / 255.0;
-		const constexpr double kinv = 255.0 / 4095;
+	for (double i = 0; i < colors.count(); ++i) {
+		double tempR = colors[i].r;
+		double tempG = colors[i].g;
+		double tempB = colors[i].b;
 
-		if ((tempR * kinv) > 255)	outColors[i].r = 255 << 4;
-		else if (tempR < 0)			outColors[i].r = 0;
-		else						outColors[i].r = (int)(tempR * kinv + 0.5) << 4;
+		colors[i].r = (double)colors[i].r / k;
+		colors[i].g = (double)colors[i].g / k;
+		colors[i].b = (double)colors[i].b / k;
 
-		if ((tempG * kinv) > 255)	outColors[i].g = 255 << 4;
-		else if (tempG < 0)			outColors[i].g = 0;
-		else						outColors[i].g = (int)(tempG * kinv + 0.5) << 4;
+		carryR += tempR - (double)colors[i].r * k;
+		carryG += tempG - (double)colors[i].g * k;
+		carryB += tempB - (double)colors[i].b * k;
 
-		if ((tempB * kinv) > 255)	outColors[i].b = 255 << 4;
-		else if (tempB < 0) 		outColors[i].b = 0;
-		else						outColors[i].b = (int)(tempB * kinv + 0.5) << 4;
+		meanIndR += (tempR - (double)colors[i].r * k) * i;
+		meanIndG += (tempG - (double)colors[i].g * k) * i;
+		meanIndB += (tempB - (double)colors[i].b * k) * i;
 
-		carryR = tempR - ((double)(outColors[i].r >> 4) * k);
-		carryG = tempG - ((double)(outColors[i].g >> 4) * k);
-		carryB = tempB - ((double)(outColors[i].b >> 4) * k);
+		if (carryR >= k) {
+			int ind = (meanIndR - (carryR - k) * i) / k;
+			colors[ind].r++;
+			carryR -= k;
+			meanIndR = carryR * i;
+		}
+		if (carryG >= k) {
+			int ind = (meanIndG - (carryG - k) * i) / k;
+			colors[ind].g++;
+			carryG -= k;
+			meanIndG = carryG * i;
+		}
+		if (carryB >= k) {
+			int ind = (meanIndB - (carryB - k) * i) / k;
+			colors[ind].b++;
+			carryB -= k;
+			meanIndB = carryB * i;
+		}
 	}
 }

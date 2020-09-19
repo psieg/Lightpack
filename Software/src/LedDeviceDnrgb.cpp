@@ -50,6 +50,7 @@ void LedDeviceDnrgb::setColors(const QList<QRgb> & colors)
 	resizeColorsBuffer(colors.count());
 
 	applyColorModifications(colors, m_colorsBuffer);
+	applyDithering(m_colorsBuffer, 8);
 
 	// Send multiple buffers
 	uint16_t remainingColors = colors.count();
@@ -75,11 +76,6 @@ void LedDeviceDnrgb::setColors(const QList<QRgb> & colors)
 		for (uint16_t i = startIndex; i < startIndex + colorsToSend; i++)
 		{
 			StructRgb color = m_colorsBuffer[i];
-
-			// Reduce 12-bit colour information
-			color.r = color.r >> 4;
-			color.g = color.g >> 4;
-			color.b = color.b >> 4;
 
 			m_writeBuffer.append(color.r);
 			m_writeBuffer.append(color.g);

@@ -51,10 +51,11 @@ void LedDeviceVirtual::setColors(const QList<QRgb> & colors)
 		resizeColorsBuffer(colors.count());
 
 		applyColorModifications(colors, m_colorsBuffer);
+		applyDithering(m_colorsBuffer, 8);
 
 		for (int i = 0; i < m_colorsBuffer.count(); i++)
 		{
-			callbackColors.append(qRgb(m_colorsBuffer[i].r>>4, m_colorsBuffer[i].g>>4, m_colorsBuffer[i].b>>4));
+			callbackColors.append(qRgb(m_colorsBuffer[i].r, m_colorsBuffer[i].g, m_colorsBuffer[i].b));
 		}
 
 		emit colorsUpdated(callbackColors);
