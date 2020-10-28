@@ -720,14 +720,69 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
              <number>0</number>
             </property>
             <item>
-             <widget class="QComboBox" name="comboBox_MoodLampLamp"/>
+             <layout class="QHBoxLayout" name="horizontalLayout_moodlampList">
+              <item>
+               <widget class="QComboBox" name="comboBox_MoodLampLamp"/>
+              </item>
+              <item>
+               <widget class="QToolButton" name="toolButton_MoodLampReload">
+                <property name="toolTip">
+                 <string>Reload lamp list</string>
+                </property>
+                <property name="text">
+                 <string>Reload</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/LightpackResources.qrc">
+                  <normaloff>:/icons/refresh.png</normaloff>:/icons/refresh.png</iconset>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QToolButton" name="toolButton_MoodLampOpenDir">
+                <property name="toolTip">
+                 <string>Open lamp script directory</string>
+                </property>
+                <property name="text">
+                 <string>Add more</string>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/LightpackResources.qrc">
+                  <normaloff>:/icons/profile_new.png</normaloff>:/icons/profile_new.png</iconset>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_MoodLampOpenReadme">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="icon">
+                 <iconset resource="../res/LightpackResources.qrc">
+                  <normaloff>:/icons/help.png</normaloff>:/icons/help.png</iconset>
+                </property>
+                <property name="flat">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_2">
               <item>
-               <widget class="QRadioButton" name="radioButton_ConstantColorMoodLampMode">
+               <widget class="QRadioButton" name="radioButton_BaseColorMoodLamp">
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A constant base color that will be passed to moodlamps as an optional seed/starting color.&lt;/p&gt;&lt;p&gt;Some lamps might not use it, some might use it partially (a combination of R,G,B,H,S,L,V components)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
                 <property name="text">
-                 <string>Constant color:</string>
+                 <string>Base color:</string>
                 </property>
                 <property name="checkable">
                  <bool>true</bool>
@@ -739,6 +794,9 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
               </item>
               <item>
                <widget class="ColorButton" name="pushButton_SelectColorMoodLamp">
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A constant base color that will be passed to moodlamps as an optional seed/starting color.&lt;/p&gt;&lt;p&gt;Some lamps might not use it, some might use it partially (a combination of R,G,B,H,S,L,V components)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
                 <property name="text">
                  <string/>
                 </property>
@@ -769,8 +827,11 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
               </property>
               <item>
                <widget class="QRadioButton" name="radioButton_LiquidColorMoodLampMode">
+                <property name="toolTip">
+                 <string>Makes the base color smoothly cycle through a dozen of colors at a certain rate.</string>
+                </property>
                 <property name="text">
-                 <string>Change color with rate:</string>
+                 <string>Change base color with rate:</string>
                 </property>
                </widget>
               </item>
@@ -780,6 +841,9 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
                  <font>
                   <pointsize>8</pointsize>
                  </font>
+                </property>
+                <property name="toolTip">
+                 <string>Makes the base color smoothly cycle through a dozen of colors at a certain rate.</string>
                 </property>
                 <property name="styleSheet">
                  <string notr="true">margin-bottom:0.4em; margin-left:0.5em</string>
@@ -796,6 +860,9 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
                <widget class="QSlider" name="horizontalSlider_MoodLampSpeed">
                 <property name="enabled">
                  <bool>false</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Makes the base color smoothly cycle through a dozen of colors at a certain rate.</string>
                 </property>
                 <property name="minimum">
                  <number>1</number>
@@ -814,6 +881,9 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
                  <font>
                   <pointsize>8</pointsize>
                  </font>
+                </property>
+                <property name="toolTip">
+                 <string>Makes the base color smoothly cycle through a dozen of colors at a certain rate.</string>
                 </property>
                 <property name="styleSheet">
                  <string notr="true">margin-bottom:0.4em;</string>
@@ -3175,7 +3245,11 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
   <tabstop>radioButton_GrabWidgetsDontShow</tabstop>
   <tabstop>radioButton_Colored</tabstop>
   <tabstop>radioButton_White</tabstop>
-  <tabstop>radioButton_ConstantColorMoodLampMode</tabstop>
+  <tabstop>comboBox_MoodLampLamp</tabstop>
+  <tabstop>toolButton_MoodLampReload</tabstop>
+  <tabstop>toolButton_MoodLampOpenDir</tabstop>
+  <tabstop>pushButton_MoodLampOpenReadme</tabstop>
+  <tabstop>radioButton_BaseColorMoodLamp</tabstop>
   <tabstop>pushButton_SelectColorMoodLamp</tabstop>
   <tabstop>radioButton_LiquidColorMoodLampMode</tabstop>
   <tabstop>horizontalSlider_MoodLampSpeed</tabstop>

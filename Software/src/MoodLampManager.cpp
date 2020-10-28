@@ -27,24 +27,29 @@
 #include "MoodLampManager.hpp"
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
+#include "QColorMetaWrapper.hpp"
 #include <QTime>
-#include "MoodLamp.hpp"
+#include <QRegularExpression>
 
 using namespace SettingsScope;
 
-MoodLampManager::MoodLampManager(QObject *parent) : QObject(parent)
+MoodLampManager::MoodLampManager(const QString& appDir, QObject *parent) : QObject(parent)
 {
 	m_isMoodLampEnabled = false;
 
 	m_timer.setTimerType(Qt::PreciseTimer);
+
+	m_scriptDir = installScripts(appDir);
+	m_jsEngine = loadScripts();
+
 	connect(&m_timer, SIGNAL(timeout()), this, SLOT(updateColors()));
 	initFromSettings();
 }
 
 MoodLampManager::~MoodLampManager()
 {
-	if (m_lamp)
-		delete m_lamp;
+	m_jsEngine->collectGarbage();
+	delete m_jsEngine;
 }
 
 void MoodLampManager::start(bool isEnabled)
@@ -60,12 +65,12 @@ void MoodLampManager::start(bool isEnabled)
 	}
 
 	if (m_isMoodLampEnabled && m_isLiquidMode)
-		m_generator.start();
+		m_generator.start(m_currentColor);
 	else
 		m_generator.stop();
 
-	if (m_isMoodLampEnabled && m_lamp)
-		m_timer.start(m_lamp->interval());
+	if (m_isMoodLampEnabled && !m_jsLamp.isUndefined())
+		m_timer.start(m_jsLamp.property("interval").toUInt());
 	else
 		m_timer.stop();
 }
@@ -86,7 +91,7 @@ void MoodLampManager::setLiquidMode(bool state)
 	m_isLiquidMode = state;
 	emit moodlampFrametime(1000); // reset FPS to 1
 	if (m_isLiquidMode && m_isMoodLampEnabled)
-		m_generator.start();
+		m_generator.start(m_currentColor);
 	else {
 		m_generator.stop();
 		if (m_isMoodLampEnabled)
@@ -137,39 +142,91 @@ void MoodLampManager::initFromSettings()
 	setCurrentLamp(Settings::getMoodLampLamp());
 }
 
-void MoodLampManager::setCurrentLamp(const int id)
+void MoodLampManager::setCurrentLamp(const QString& moduleName)
 {
 	m_timer.stop();
 
-	if (m_lamp) {
-		delete m_lamp;
-		m_lamp = nullptr;
+	if (!m_jsLamp.isUndefined()) {
+		m_jsLamp = QJSValue();
+		m_jsEngine->collectGarbage();
 	}
 
-	m_lamp = MoodLampBase::createWithID(id);
+	if (!m_lamps.contains(moduleName)) {
+		qWarning() << Q_FUNC_INFO << moduleName << "unknown lamp";
+		return;
+	}
+
+	const MoodLampLampInfo& lampInfo = m_lamps[moduleName];
+
+	const QJSValue& newLamp = m_jsEngine->importModule(lampInfo.modulePath);
+	if (newLamp.isError()) {
+		qWarning() << Q_FUNC_INFO << QString("JS Error in %1:%2 %3")
+			.arg(newLamp.property("fileName").toString())
+			.arg(newLamp.property("lineNumber").toInt())
+			.arg(newLamp.toString());
+		return;
+	}
+	m_lampModuleName = moduleName;
+	m_jsLamp = newLamp;
 	emit moodlampFrametime(1000); // reset FPS to 1
-	if (m_isMoodLampEnabled && m_lamp)
-		m_timer.start(m_lamp->interval());
+	if (m_isMoodLampEnabled && !m_jsLamp.isUndefined()) {
+		updateColors(true);
+		m_timer.start(m_jsLamp.property("interval").toUInt());
+	}
 }
 
 void MoodLampManager::updateColors(const bool forceUpdate)
 {
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO << m_isLiquidMode;
 
-	QColor newColor;
+	QColor baseColor;
 
 	if (m_isLiquidMode)
-	{
-		newColor = m_generator.current();
-	}
+		baseColor = m_generator.current();
 	else
-	{
-		newColor = m_currentColor;
+		baseColor = m_currentColor;
+
+	DEBUG_MID_LEVEL << Q_FUNC_INFO << baseColor.rgb();
+
+	bool changed = false;
+	if (!m_jsLamp.isUndefined()) {
+		QJSValueList args;
+		args << baseColor.rgb();
+
+		QVariantList outColors;
+		outColors.reserve(m_colors.size());
+		for (const QRgb color : m_colors)
+			outColors << color;
+		args << m_jsEngine->toScriptValue(outColors);
+
+		// Qt 5.15+ can auto convert m_colors
+		//args << m_jsEngine.toScriptValue(m_colors);
+
+		const QJSValue& result = m_jsLamp.property("tick").call(args);
+		if (result.isError()) {
+			qWarning() << Q_FUNC_INFO << QString("JS Error in %1:%2 %3")
+				.arg(result.property("fileName").toString())
+				.arg(result.property("lineNumber").toInt())
+				.arg(result.toString());
+		}
+		else if (result.isArray()) {
+			const QVariantList& colors = result.toVariant().toList();
+			for (int i = 0; i < colors.size(); ++i) {
+				const QRgb newColor = Settings::isLedEnabled(i) ? colors[i].toInt() : 0;
+				changed = changed || (m_colors[i] != newColor);
+				m_colors[i] = newColor;
+			}
+		}
+		else
+			qWarning() << Q_FUNC_INFO << m_jsLamp.property("name").toString() << "tick() does not return [rgb1, rgb2, ...]";
+	}
+	else { // fallback to static
+		for (QRgb& color : m_colors) {
+			changed = changed || (color != baseColor.rgb());
+			color = baseColor.rgb();
+		}
 	}
 
-	DEBUG_MID_LEVEL << Q_FUNC_INFO << newColor.rgb();
-
-	bool changed = (m_lamp ? m_lamp->shine(newColor, m_colors) : false);
 	if (changed || !m_isSendDataOnlyIfColorsChanged || forceUpdate) {
 		emit updateLedsColors(m_colors);
 		if (forceUpdate) {
@@ -194,12 +251,84 @@ void MoodLampManager::initColors(int numberOfLeds)
 		m_colors << 0;
 }
 
-void MoodLampManager::requestLampList()
+void MoodLampManager::requestLampList(const bool reloadScripts = false)
 {
-	QList<MoodLampLampInfo> list;
-	int recommended = 0;
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << reloadScripts;
 
-	MoodLampBase::populateNameList(list, recommended);
+	if (reloadScripts) {
+		m_lamps.clear();
+		m_scriptDir.refresh();
+		QJSEngine* oldEngine = m_jsEngine;
+		m_jsEngine = loadScripts();
+		setCurrentLamp(m_lampModuleName);
+		delete oldEngine;
+	}
+	emit lampList(m_lamps.values());
+}
 
-	emit lampList(list, recommended);
+QDir MoodLampManager::installScripts(const QString& appDir)
+{
+	const QString moodlampsDirName("moodlamps");
+	QDir installDir(appDir);
+	if (!installDir.exists(moodlampsDirName))
+		installDir.mkdir(moodlampsDirName);
+	installDir.cd(moodlampsDirName);
+
+	const QDir resLampDir(":/" + moodlampsDirName, "*.mjs", QDir::IgnoreCase | QDir::Name, QDir::Files);
+	const QStringList& reslampScriptList = resLampDir.entryList();
+	for (const QString& lampScript : reslampScriptList) {
+		if (QFile::exists(installDir.absoluteFilePath(lampScript)) && !QFile::remove(installDir.absoluteFilePath(lampScript))) {
+			qWarning() << Q_FUNC_INFO << "Could not remove" << lampScript;
+			continue;
+		}
+		if (!QFile::copy(":/" + moodlampsDirName + "/" + lampScript, installDir.absoluteFilePath(lampScript)))
+			qWarning() << Q_FUNC_INFO << "Cound not install" << lampScript;
+	}
+	return installDir;
+}
+
+QJSEngine* MoodLampManager::loadScripts()
+{
+	QJSEngine* jsEngine = new QJSEngine(this);
+	jsEngine->globalObject().setProperty("QColor", jsEngine->newQMetaObject<QColorMetaWrapper>());
+	jsEngine->globalObject().setProperty("QT_VERSION", QT_VERSION);
+
+	const QRegularExpression cleanNameFilter("^[a-z0-9_]+\\.mjs$");
+	const QStringList& lampScriptList = m_scriptDir.entryList().filter(cleanNameFilter);
+	bool enableConsole = false;
+	for (const QString& lampScript : lampScriptList) {
+		const QJSValue& jsModule = jsEngine->importModule(m_scriptDir.filePath(lampScript));
+		if (jsModule.isError()) {
+			qWarning() << Q_FUNC_INFO << lampScript << QString("JS Error in %1:%2 %3")
+				.arg(jsModule.property("fileName").toString())
+				.arg(jsModule.property("lineNumber").toInt())
+				.arg(jsModule.toString());
+		}
+		else if (!jsModule.hasOwnProperty("name") || !jsModule.property("name").isString())
+			qWarning() << Q_FUNC_INFO << lampScript << "does not have \"export const name = string\"";
+		else if (!jsModule.hasOwnProperty("tick") || !jsModule.property("tick").isCallable())
+			qWarning() << Q_FUNC_INFO << lampScript << "does not have \"export function tick(baseColor, colors){...}\"";
+		else if (!jsModule.hasOwnProperty("interval") || !jsModule.property("interval").isNumber() || jsModule.property("interval").toUInt() < 1)
+			qWarning() << Q_FUNC_INFO << lampScript << "does not have \"export const interval = number\" with a valid (> 0) value" ;
+		else {
+			m_lamps.insert(lampScript,
+				MoodLampLampInfo(
+					jsModule.property("name").toString(),
+					lampScript,
+					m_scriptDir.filePath(lampScript)
+				)
+			);
+			enableConsole |= jsModule.hasOwnProperty("enableConsole") && jsModule.property("enableConsole").toBool();
+		}
+	}
+	if (m_lamps.isEmpty())
+		qWarning() << Q_FUNC_INFO << "No moodlamps loaded from " << m_scriptDir.absolutePath() << "; file names have to match" << cleanNameFilter.pattern();
+	if (enableConsole)
+		jsEngine->installExtensions(QJSEngine::ConsoleExtension);
+	return jsEngine;
+}
+
+QString MoodLampManager::scriptDir() const
+{
+	return m_scriptDir.absolutePath();
 }

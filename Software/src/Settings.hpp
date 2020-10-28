@@ -220,8 +220,8 @@ public:
 	static void setMoodLampColor(QColor color);
 	static int getMoodLampSpeed();
 	static void setMoodLampSpeed(int value);
-	static int getMoodLampLamp();
-	static void setMoodLampLamp(int value);
+	static QString getMoodLampLamp();
+	static void setMoodLampLamp(const QString& value);
 
 #ifdef SOUNDVIZ_SUPPORT
 	static int getSoundVisualizerDevice();
@@ -375,7 +375,7 @@ signals:
 	void moodLampLiquidModeChanged(bool isLiquidMode);
 	void moodLampColorChanged(const QColor color);
 	void moodLampSpeedChanged(int value);
-	void moodLampLampChanged(int value);
+	void moodLampLampChanged(const QString& value);
 #ifdef SOUNDVIZ_SUPPORT
 	void soundVisualizerDeviceChanged(int value);
 	void soundVisualizerVisualizerChanged(int value);

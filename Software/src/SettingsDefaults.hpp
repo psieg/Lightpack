@@ -195,7 +195,7 @@ static const double GammaMax = 10.0;
 // [MoodLamp]
 namespace MoodLamp
 {
-static const int LampDefault = 0;
+static const QString LampDefault = "static.mjs";
 static const int SpeedMin = 1;
 static const int SpeedDefault = 50;
 static const int SpeedMax = 100;

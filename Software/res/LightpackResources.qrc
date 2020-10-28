@@ -39,5 +39,12 @@
         <file>icons/Prismatik-pixmap.png</file>
         <file>text/cast.html</file>
         <file>icons/persist.png</file>
+
+        <file>moodlamps/static.mjs</file>
+        <file>moodlamps/rgb_is_life.mjs</file>
+        <file>moodlamps/rgb_cycle.mjs</file>
+        <file>moodlamps/breathing.mjs</file>
+        <file>moodlamps/fire.mjs</file>
+        <file>moodlamps/random_noise.mjs</file>
     </qresource>
 </RCC>

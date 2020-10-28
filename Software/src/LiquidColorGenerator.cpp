@@ -51,13 +51,16 @@ LiquidColorGenerator::LiquidColorGenerator(QObject *parent) : QObject(parent)
 	connect(&m_timer, SIGNAL(timeout()), this, SLOT(updateColor()));
 }
 
-void LiquidColorGenerator::start()
+void LiquidColorGenerator::start(const QColor& color)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
 	m_isEnabled = true;
 
 	reset();
+	m_red = color.red();
+	m_green = color.green();
+	m_blue = color.blue();
 	updateColor();
 }
 

@@ -42,14 +42,14 @@ signals:
 	void updateColor(QColor color);
 
 public:
-	void start();
+	void start(const QColor& color = Qt::black);
 	void stop();
 	QColor current();
 	void reset();
 
 public slots:
 	void setSpeed(int value);
-	
+
 private:
 	int generateDelay();
 	QColor generateColor();

@@ -1714,7 +1714,7 @@ QColor Settings::getMoodLampColor()
 void Settings::setMoodLampColor(QColor value)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value.name();
-	setValue(Profile::Key::MoodLamp::Color, value.name() );
+	setValue(Profile::Key::MoodLamp::Color, value.name());
 	m_this->moodLampColorChanged(value);
 }
 
@@ -1731,13 +1731,14 @@ void Settings::setMoodLampSpeed(int value)
 	m_this->moodLampSpeedChanged(value);
 }
 
-int Settings::getMoodLampLamp()
+QString Settings::getMoodLampLamp()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
-	return value(Profile::Key::MoodLamp::Lamp).toInt();
+	const QString& val = value(Profile::Key::MoodLamp::Lamp).toString();
+	return val.isEmpty() ? Profile::MoodLamp::LampDefault : val;
 }
 
-void Settings::setMoodLampLamp(int value)
+void Settings::setMoodLampLamp(const QString& value)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 	setValue(Profile::Key::MoodLamp::Lamp, value);
@@ -2354,5 +2355,13 @@ void Settings::migrateSettings()
 
 		setValueMain(Main::Key::MainConfigVersion, "4.0");
 	}
+
+	const QString& val = value(Profile::Key::MoodLamp::Lamp).toString();
+	if (val == "0")
+		setValue(Profile::Key::MoodLamp::Lamp, "static.mjs");
+	else if (val == "1")
+		setValue(Profile::Key::MoodLamp::Lamp, "fire.mjs");
+	else if (val == "2")
+		setValue(Profile::Key::MoodLamp::Lamp, "rgb_is_life.mjs");
 }
 } /*SettingsScope*/

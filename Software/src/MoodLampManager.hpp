@@ -29,24 +29,36 @@
 #include <QColor>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QJSEngine>
+#include <QDir>
 #include "LiquidColorGenerator.hpp"
-#include "MoodLamp.hpp"
+
+struct MoodLampLampInfo {
+	MoodLampLampInfo() {}
+	MoodLampLampInfo(const QString& name, const QString& moduleName, const QString& modulePath) :
+		name(name), moduleName(moduleName), modulePath(modulePath)
+	{}
+	QString name;
+	QString moduleName;
+	QString modulePath;
+};
+Q_DECLARE_METATYPE(MoodLampLampInfo);
 
 class MoodLampManager : public QObject
 {
 	Q_OBJECT
 public:
-	explicit MoodLampManager(QObject *parent = 0);
+	explicit MoodLampManager(const QString& appDir, QObject *parent = 0);
 	~MoodLampManager();
 
 signals:
 	void updateLedsColors(const QList<QRgb> & colors);
-	void lampList(const QList<MoodLampLampInfo> &, int);
+	void lampList(const QList<MoodLampLampInfo> &);
 	void moodlampFrametime(const double frameMs);
 
 public:
 	void start(bool isMoodLampEnabled);
-
+	QString scriptDir() const;
 	// Common options
 	void reset();
 
@@ -57,8 +69,8 @@ public slots:
 	void settingsProfileChanged(const QString &profileName);
 	void setNumberOfLeds(int value);
 	void setCurrentColor(QColor color);
-	void setCurrentLamp(const int id);
-	void requestLampList();
+	void setCurrentLamp(const QString& moduleName);
+	void requestLampList(const bool reloadScripts);
 	void setSendDataOnlyIfColorsChanged(bool state);
 
 private slots:
@@ -66,10 +78,10 @@ private slots:
 
 private:
 	void initColors(int numberOfLeds);
+	QDir installScripts(const QString& appDir);
+	QJSEngine* loadScripts();
 
 private:
-	MoodLampBase* m_lamp{ nullptr };
-
 	LiquidColorGenerator m_generator;
 	QList<QRgb> m_colors;
 
@@ -81,4 +93,11 @@ private:
 	QTimer m_timer;
 	QElapsedTimer m_elapsedTimer;
 	size_t m_frames{ 1 };
+
+	QJSEngine* m_jsEngine;
+	QJSValue m_jsLamp;
+	QDir m_scriptDir;
+	QString m_lampModuleName;
+
+	QMap<QString, MoodLampLampInfo> m_lamps;
 };

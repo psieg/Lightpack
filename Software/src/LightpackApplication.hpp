@@ -83,6 +83,7 @@ private slots:
 	void onFocusChanged(QWidget *, QWidget *);
 	void quitFromWizard(int result);
 	void onSessionChange(int change);
+	void openMoodLampScriptDir();
 
 private:
 	void processCommandLineArguments();

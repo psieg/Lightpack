@@ -222,6 +222,9 @@ void SettingsWindow::connectSignalsSlots()
 	connect(ui->radioButton_LiquidColorMoodLampMode, SIGNAL(toggled(bool)), this, SLOT(onMoodLampLiquidMode_Toggled(bool)));
 	connect(ui->horizontalSlider_MoodLampSpeed, SIGNAL(valueChanged(int)), this, SLOT(onMoodLampSpeed_valueChanged(int)));
 	connect(ui->comboBox_MoodLampLamp, SIGNAL(currentIndexChanged(int)), this, SLOT(onMoodLampLamp_currentIndexChanged(int)));
+	connect(ui->toolButton_MoodLampReload, SIGNAL(clicked()), this, SLOT(onMoodLampReloadScripts_clicked()));
+	connect(ui->toolButton_MoodLampOpenDir, SIGNAL(clicked()), this, SLOT(onMoodLampOpenScripts_clicked()));
+	connect(ui->pushButton_MoodLampOpenReadme, SIGNAL(clicked()), this, SLOT(onMoodLampOpenReadme_clicked()));
 
 	// Main options
 	connect(ui->comboBox_LightpackModes, SIGNAL(currentIndexChanged(int)), this, SLOT(onLightpackModes_currentIndexChanged(int)));
@@ -498,7 +501,7 @@ int SettingsWindow::getLigtpackFirmwareVersionMajor()
 void SettingsWindow::onPostInit() {
 	updateUiFromSettings();
 	this->requestFirmwareVersion();
-	this->requestMoodLampLamps();
+	this->requestMoodLampLamps(false);
 #ifdef SOUNDVIZ_SUPPORT
 	this->requestSoundVizDevices();
 	this->requestSoundVizVisualizers();
@@ -988,18 +991,17 @@ void SettingsWindow::updateAvailableSoundVizVisualizers(const QList<SoundManager
 }
 #endif
 
-void SettingsWindow::updateAvailableMoodLampLamps(const QList<MoodLampLampInfo> & lamps, int recommended)
+void SettingsWindow::updateAvailableMoodLampLamps(const QList<MoodLampLampInfo> & lamps)
 {
 	ui->comboBox_MoodLampLamp->blockSignals(true);
 	ui->comboBox_MoodLampLamp->clear();
-	int selectedLamp = Settings::getMoodLampLamp();
-	if (selectedLamp == -1) selectedLamp = recommended;
+	QString selectedLamp = Settings::getMoodLampLamp();
 	int selectIndex = -1;
 	for (int i = 0; i < lamps.size(); i++) {
-		ui->comboBox_MoodLampLamp->addItem(lamps[i].name, lamps[i].id);
-		if (lamps[i].id == selectedLamp) {
+		ui->comboBox_MoodLampLamp->addItem(lamps[i].name, lamps[i].moduleName);
+
+		if (lamps[i].moduleName == selectedLamp)
 			selectIndex = i;
-		}
 	}
 	ui->comboBox_MoodLampLamp->setCurrentIndex(selectIndex);
 	ui->comboBox_MoodLampLamp->blockSignals(false);
@@ -1449,8 +1451,8 @@ void SettingsWindow::onMoodLampSpeed_valueChanged(int value)
 void SettingsWindow::onMoodLampLamp_currentIndexChanged(int index)
 {
 	if (!updatingFromSettings) {
-		DEBUG_MID_LEVEL << Q_FUNC_INFO << index << ui->comboBox_MoodLampLamp->currentData().toInt();
-		Settings::setMoodLampLamp(ui->comboBox_MoodLampLamp->currentData().toInt());
+		DEBUG_MID_LEVEL << Q_FUNC_INFO << index << ui->comboBox_MoodLampLamp->currentData().toString();
+		Settings::setMoodLampLamp(ui->comboBox_MoodLampLamp->currentData().toString());
 	}
 }
 
@@ -1467,6 +1469,27 @@ void SettingsWindow::onMoodLampLiquidMode_Toggled(bool checked)
 		ui->pushButton_SelectColorMoodLamp->setEnabled(true);
 		ui->horizontalSlider_MoodLampSpeed->setEnabled(false);
 	}
+}
+
+void SettingsWindow::onMoodLampReloadScripts_clicked()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	this->requestMoodLampLamps(true);
+}
+
+void SettingsWindow::onMoodLampOpenScripts_clicked()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	this->openMoodLampScriptDir();
+}
+
+void SettingsWindow::onMoodLampOpenReadme_clicked()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	QDesktopServices::openUrl(QUrl("https://github.com/psieg/Lightpack/tree/master/Software/res/moodlamps"));
 }
 
 #ifdef SOUNDVIZ_SUPPORT
@@ -1886,12 +1909,12 @@ void SettingsWindow::updateUiFromSettings()
 	ui->radioButton_LuminosityDeadZone->setChecked					(!Settings::isMinimumLuminosityEnabled());
 
 	// Check the selected moodlamp mode (setChecked(false) not working to select another)
-	ui->radioButton_ConstantColorMoodLampMode->setChecked			(!Settings::isMoodLampLiquidMode());
+	ui->radioButton_BaseColorMoodLamp->setChecked			(!Settings::isMoodLampLiquidMode());
 	ui->radioButton_LiquidColorMoodLampMode->setChecked				(Settings::isMoodLampLiquidMode());
 	ui->pushButton_SelectColorMoodLamp->setColor						(Settings::getMoodLampColor());
 	ui->horizontalSlider_MoodLampSpeed->setValue						(Settings::getMoodLampSpeed());
 	for (int i = 0; i < ui->comboBox_MoodLampLamp->count(); i++) {
-		if (ui->comboBox_MoodLampLamp->itemData(i).toInt() == Settings::getMoodLampLamp()) {
+		if (ui->comboBox_MoodLampLamp->itemData(i).toString() == Settings::getMoodLampLamp()) {
 			ui->comboBox_MoodLampLamp->setCurrentIndex(i);
 			break;
 		}
