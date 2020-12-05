@@ -2,7 +2,6 @@
 #include "LightpackApiTest.hpp"
 #include "GrabCalculationTest.hpp"
 #include "lightpackmathtest.hpp"
-#include "AppVersionTest.hpp"
 #ifdef Q_OS_WIN
 #include "HooksTest.h"
 #endif
@@ -31,7 +30,6 @@ int main(int argc, char *argv[])
 
 	tests.append(new LightpackMathTest());
 	tests.append(new LightpackApiTest());
-	tests.append(new AppVersionTest());
 	tests.append(new LightpackCommandLineParserTest());
 
 	for(int i=0; i < tests.size(); i++) {

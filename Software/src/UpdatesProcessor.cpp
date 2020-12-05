@@ -25,8 +25,10 @@
  */
 
 #include <QCoreApplication>
-#include <QXmlStreamReader>
 #include <QNetworkReply>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonArray>
 #include <QFile>
 #include <QDir>
 #include <QProcess>
@@ -35,10 +37,9 @@
 #include "UpdatesProcessor.hpp"
 #include "Settings.hpp"
 
-//#define UPDATE_CHECK_URL "https://psieg.de/lightpack/update.xml"
-#define UPDATE_CHECK_URL "https://psieg.github.io/Lightpack/update.xml"
-
-const AppVersion kCurVersion(VERSION_STR);
+// #define UPDATE_CHECK_URL "https://psieg.de/lightpack/update.xml"
+// #define UPDATE_CHECK_URL "https://psieg.github.io/Lightpack/update.xml"
+#define UPDATE_CHECK_URL "https://api.github.com/repos/psieg/Lightpack/releases/latest"
 
 UpdatesProcessor::UpdatesProcessor(QObject * parent)
 	: QObject(parent)
@@ -60,38 +61,39 @@ void UpdatesProcessor::requestUpdates()
 		_reply = NULL;
 	}
 
-	QNetworkRequest request(QUrl(UPDATE_CHECK_URL));
+	QNetworkRequest request(QUrl(QStringLiteral(UPDATE_CHECK_URL)));
+	request.setHeader(QNetworkRequest::UserAgentHeader, QVariant("psieg/Lightpack"));
 	request.setSslConfiguration(QSslConfiguration::defaultConfiguration());
 	_reply = _networkMan.get(request);
 	connect(_reply, SIGNAL(finished()), this, SIGNAL(readyRead()));
 	connect(_reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(error(QNetworkReply::NetworkError)));
 }
 
-QList<UpdateInfo> UpdatesProcessor::readUpdates()
+UpdateInfo UpdatesProcessor::readUpdates()
 {
-	QList<UpdateInfo> updates;
+	const QJsonObject& releaseObject = QJsonDocument::fromJson(_reply->readAll()).object();
 
-	QXmlStreamReader xmlReader(_reply->readAll());
+	UpdateInfo update;
 
-	if (xmlReader.readNextStartElement()) {
-		if (xmlReader.name() == "updates") {
-			readUpdates(&updates, &xmlReader);
-			QList<UpdateInfo>::iterator it = updates.begin();
-			while (it != updates.end()) {
-				UpdateInfo updateInfo = *it;
-				if (!updateInfo.softwareVersion.isEmpty() && !isVersionMatches(updateInfo.softwareVersion, kCurVersion)) {
-					updates.removeAll(updateInfo);
-				} else {
-					it++;
-				}
-			}
-		}
+	update.id = releaseObject.value(QStringLiteral("id")).toInt();
+	update.url = releaseObject.value(QStringLiteral("html_url")).toString();
+	update.text = releaseObject.value(QStringLiteral("body")).toString();
+	update.title = releaseObject.value(QStringLiteral("name")).toString();
+	update.softwareVersion = QVersionNumber::fromString(releaseObject.value(QStringLiteral("tag_name")).toString());
+	// find firmware in assets?
+	// update.firmwareVersion = ...
+	for (const QJsonValue& assetValue : releaseObject.value(QStringLiteral("assets")).toArray()) {
+		const QJsonObject& obj = assetValue.toObject();
+		if (obj.value(QStringLiteral("name")).toString().endsWith(QStringLiteral(".exe")))
+			update.pkgUrl = obj.value(QStringLiteral("browser_download_url")).toString();
+		else if (obj.value(QStringLiteral("name")).toString().endsWith(QStringLiteral(".exe.updater_signature")))
+			update.sigUrl = obj.value(QStringLiteral("browser_download_url")).toString();
 	}
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << updates.size() << "updates available";
-	return updates;
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "latest available version" << update.softwareVersion;
+	return update;
 }
 
-void UpdatesProcessor::loadUpdate(UpdateInfo& info)
+void UpdatesProcessor::loadUpdate(const UpdateInfo& info)
 {
 #ifdef Q_OS_WIN
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "fetching" << info.pkgUrl;
@@ -121,6 +123,7 @@ void UpdatesProcessor::loadUpdate(UpdateInfo& info)
 	connect(_reply, SIGNAL(finished()), this, SLOT(updatePgkLoaded()));
 	connect(_reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(error(QNetworkReply::NetworkError)));
 #else
+	Q_UNUSED(info)
 	qWarning() << Q_FUNC_INFO << "Trying to load update on non-windows platform -- ignored";
 #endif
 }
@@ -133,7 +136,7 @@ void UpdatesProcessor::updatePgkLoaded()
 
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "fetching " << _sigUrl;
 
-	QFile f(QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe");
+	QFile f(QDir::tempPath() + QStringLiteral("\\PsiegUpdateElevate_Prismatik.exe"));
 	if (!f.open(QIODevice::WriteOnly)) {
 		qCritical() << Q_FUNC_INFO << "Failed to write update package";
 	}
@@ -164,7 +167,7 @@ void UpdatesProcessor::updateSigLoaded()
 		return;
 	DEBUG_MID_LEVEL << Q_FUNC_INFO;
 
-	QFile f(QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe.sig");
+	QFile f(QDir::tempPath() + QStringLiteral("\\PsiegUpdateElevate_Prismatik.exe.sig"));
 	if (!f.open(QIODevice::WriteOnly)) {
 		qCritical() << Q_FUNC_INFO << "Failed to write update signature";
 	}
@@ -182,113 +185,10 @@ void UpdatesProcessor::updateSigLoaded()
 	args.append("request");
 	args.append(QDir::tempPath());
 	args.append(QCoreApplication::applicationFilePath());
-	if (QProcess::startDetached(QCoreApplication::applicationDirPath() + "\\UpdateElevate.exe", args)) {
+	if (QProcess::startDetached(QCoreApplication::applicationDirPath() + QStringLiteral("\\UpdateElevate.exe"), args)) {
 		QCoreApplication::quit();
 	} else {
 		qCritical() << Q_FUNC_INFO << "Failed to start UpdateElevate.exe";
 	}
 }
 #endif
-
-bool UpdatesProcessor::isVersionMatches(const QString &predicate, const AppVersion &version)
-{
-	enum Condition {
-		LT,
-		GT,
-		EQ,
-		LE,
-		GE
-	};
-
-	Condition cond;
-	QStringRef predicateRef(&predicate);
-
-	QStringRef predicateVerStr = predicateRef.mid(2).trimmed();
-
-	QStringRef condStr = predicateRef.left(2);
-
-	if (condStr == "lt") {
-		cond = LT;
-	} else if (condStr == "gt") {
-		cond = GT;
-	} else if (condStr == "eq") {
-		cond = EQ;
-	} else if (condStr == "le") {
-		cond = LE;
-	} else if (condStr == "ge") {
-		cond = GE;
-	} else {
-		cond = EQ;
-		predicateVerStr = predicateRef.trimmed();
-	}
-
-	AppVersion predicateVer(predicateVerStr.toString());
-
-	if (!version.isValid() || !predicateVer.isValid())
-		return false;
-
-	switch (cond) {
-	case LT:
-		return version < predicateVer;
-		break;
-	case GT:
-		return version > predicateVer;
-		break;
-	case EQ:
-		return version == predicateVer;
-		break;
-	case LE:
-		return version <= predicateVer;
-		break;
-	case GE:
-		return version >= predicateVer;
-		break;
-	}
-
-	Q_ASSERT(false);
-	return false;
-}
-
-QList<UpdateInfo> * UpdatesProcessor::readUpdates(QList<UpdateInfo> *updates, QXmlStreamReader *xmlReader)
-{
-	if (xmlReader->readNextStartElement()) {
-		while (xmlReader->name() == "update") {
-			UpdateInfo updateInfo;
-			while(xmlReader->readNextStartElement()) {
-				if (xmlReader->name() == "id") {
-					xmlReader->readNext();
-					QStringRef id = xmlReader->text();
-					updateInfo.id = id.toUInt();
-				} else if (xmlReader->name() == "url") {
-					xmlReader->readNext();
-					updateInfo.url = xmlReader->text().toString();
-				} else if (xmlReader->name() == "pkgUrl") {
-					xmlReader->readNext();
-					updateInfo.pkgUrl = xmlReader->text().toString();
-				} else if (xmlReader->name() == "sigUrl") {
-					xmlReader->readNext();
-					updateInfo.sigUrl = xmlReader->text().toString();
-				} else if (xmlReader->name() == "title") {
-					xmlReader->readNext();
-					updateInfo.title = xmlReader->text().toString();
-				} else if (xmlReader->name() == "text") {
-					xmlReader->readNext();
-					updateInfo.text = xmlReader->text().toString();
-				} else if (xmlReader->name() == "softwareVersion") {
-					xmlReader->readNext();
-					updateInfo.softwareVersion = xmlReader->text().toString();
-				} else if (xmlReader->name() == "firmwareVersion") {
-					xmlReader->readNext();
-					updateInfo.firmwareVersion = xmlReader->text().toString();
-				} else if (xmlReader->name() == "update") {
-					break;
-				}
-				xmlReader->skipCurrentElement();
-			}
-			// add updates with defined id only
-			if(updateInfo.id > 0)
-				updates->append(updateInfo);
-		}
-	}
-	return updates;
-}

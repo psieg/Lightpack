@@ -60,7 +60,6 @@ HEADERS += \
     GrabCalculationTest.hpp \
     LightpackApiTest.hpp \
     lightpackmathtest.hpp \
-    AppVersionTest.hpp \
     ../src/UpdatesProcessor.hpp \
     LightpackCommandLineParserTest.hpp
 
@@ -76,7 +75,6 @@ SOURCES += \
     GrabCalculationTest.cpp \
     lightpackmathtest.cpp \
     TestsMain.cpp \
-    AppVersionTest.cpp \
     ../src/UpdatesProcessor.cpp \
     LightpackCommandLineParserTest.cpp
 

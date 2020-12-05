@@ -32,87 +32,9 @@
 #include <QObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QVersionNumber>
 
 class QNetworkReply;
-class QXmlStreamReader;
-
-class AppVersion
-{
-public:
-	AppVersion()
-		: _major(0)
-		, _minor(0)
-		, _rc(0)
-		, _build(0)
-	{}
-
-	AppVersion(const QString &version)
-	{
-		initWith(version);
-	}
-
-	void initWith(const QString &version)
-	{
-		QStringList splittedVer = version.split(".");
-		if (splittedVer.size() > 4 || splittedVer.size() < 1)
-		{
-			return;
-		}
-
-		_major = splittedVer[0].toInt();
-		_minor = splittedVer.size() > 1 ? splittedVer[1].toInt() : 0;
-		_rc	= splittedVer.size() > 2 ? splittedVer[2].toInt() : 0;
-		_build = splittedVer.size() > 3 ? splittedVer[3].toInt() : 0;
-	}
-
-	bool isValid() const {
-		return _major != 0 || _minor != 0 || _rc != 0 || _build != 0;
-	}
-
-	int compare(const AppVersion &other) const {
-		int dmj = this->_major - other._major;
-		if (dmj != 0)
-			return dmj;
-		int dmn = this->_minor - other._minor;
-		if (dmn != 0)
-			return dmn;
-		int drc = this->_rc - other._rc;
-		if (drc != 0)
-			return drc;
-		int dbuild = this->_build - other._build;
-		return dbuild;
-	}
-
-	bool operator== (const AppVersion &other) const {
-		return this->compare(other) == 0;
-	}
-
-	bool operator!= (const AppVersion &other) const {
-		return this->compare(other) != 0;
-	}
-
-	bool operator< (const AppVersion &other) const {
-		return this->compare(other) < 0;
-	}
-
-	bool operator> (const AppVersion &other) const {
-		return this->compare(other) > 0;
-	}
-
-	bool operator>= (const AppVersion &other) const {
-		return *this > other || *this == other ;
-	}
-
-	bool operator<= (const AppVersion &other) const {
-		return *this < other || *this == other ;
-	}
-
-private:
-	uint _major;
-	uint _minor;
-	uint _rc;
-	uint _build;
-};
 
 struct UpdateInfo
 {
@@ -129,8 +51,8 @@ struct UpdateInfo
 	QString		sigUrl;
 	QString		title;
 	QString		text;
-	QString		softwareVersion;
-	QString		firmwareVersion;
+	QVersionNumber		softwareVersion;
+	// QVersionNumber		firmwareVersion;
 
 	bool operator== (const UpdateInfo &other) const {
 		return this->id == other.id;
@@ -147,8 +69,8 @@ class UpdatesProcessor: public QObject
 public:
 	UpdatesProcessor(QObject * parent = NULL);
 	void requestUpdates();
-	QList<UpdateInfo> readUpdates();
-	void loadUpdate(UpdateInfo& info);
+	UpdateInfo readUpdates();
+	void loadUpdate(const UpdateInfo& info);
 
 signals:
 	void readyRead();
@@ -161,9 +83,6 @@ private slots:
 #endif
 
 private:
-	QList<UpdateInfo> * readUpdates(QList<UpdateInfo> * readUpdates, QXmlStreamReader * xmlReader);
-	bool isVersionMatches(const QString &predicate, const AppVersion &version);
-
 	QNetworkAccessManager _networkMan;
 	QNetworkReply * _reply;
 	QString _sigUrl;

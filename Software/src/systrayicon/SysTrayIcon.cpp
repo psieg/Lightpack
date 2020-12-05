@@ -2,21 +2,21 @@
  * SysTrayIcon.cpp
  *
  *	Created on: 11/23/2013
- *		Project: Prismatik 
+ *		Project: Prismatik
  *
  *	Copyright (c) 2013 tim
  *
  *	Lightpack is an open-source, USB content-driving ambient lighting
  *	hardware.
  *
- *	Prismatik is a free, open-source software: you can redistribute it and/or 
- *	modify it under the terms of the GNU General Public License as published 
+ *	Prismatik is a free, open-source software: you can redistribute it and/or
+ *	modify it under the terms of the GNU General Public License as published
  *	by the Free Software Foundation, either version 2 of the License, or
  *	(at your option) any later version.
  *
  *	Prismatik and Lightpack files is distributed in the hope that it will be
  *	useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
- *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the GNU 
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the GNU
  *	General Public License for more details.
  *
  *	You should have received a copy of the GNU General Public License
@@ -30,6 +30,7 @@
 #include <QDesktopServices>
 #include <QNetworkReply>
 #include "Settings.hpp"
+#include "version.h"
 
 SysTrayIcon::SysTrayIcon(QObject *parent) :
 	QObject(parent)
@@ -69,11 +70,11 @@ void SysTrayIcon::init()
 
 	connect(&_updatesProcessor, SIGNAL(readyRead()), this, SLOT(onCheckUpdate_Finished()));
 
-	_pixmapCache.insert("lock32", new QPixmap(QPixmap(":/icons/lock.png").scaledToWidth(32, Qt::SmoothTransformation)));
-	_pixmapCache.insert("on32", new QPixmap(QPixmap(":/icons/on.png").scaledToWidth(32, Qt::SmoothTransformation)));
-	_pixmapCache.insert("off32", new QPixmap(QPixmap(":/icons/off.png").scaledToWidth(32, Qt::SmoothTransformation)));
-	_pixmapCache.insert("error32", new QPixmap(QPixmap(":/icons/error.png").scaledToWidth(32, Qt::SmoothTransformation)));
-	_pixmapCache.insert("persist32", new QPixmap(QPixmap(":/icons/persist.png").scaledToWidth(32, Qt::SmoothTransformation)));
+	_pixmapCache.insert(QStringLiteral("lock32"), new QPixmap(QPixmap(QStringLiteral(":/icons/lock.png")).scaledToWidth(32, Qt::SmoothTransformation)));
+	_pixmapCache.insert(QStringLiteral("on32"), new QPixmap(QPixmap(QStringLiteral(":/icons/on.png")).scaledToWidth(32, Qt::SmoothTransformation)));
+	_pixmapCache.insert(QStringLiteral("off32"), new QPixmap(QPixmap(QStringLiteral(":/icons/off.png")).scaledToWidth(32, Qt::SmoothTransformation)));
+	_pixmapCache.insert(QStringLiteral("error32"), new QPixmap(QPixmap(QStringLiteral(":/icons/error.png")).scaledToWidth(32, Qt::SmoothTransformation)));
+	_pixmapCache.insert(QStringLiteral("persist32"), new QPixmap(QPixmap(QStringLiteral(":/icons/persist.png")).scaledToWidth(32, Qt::SmoothTransformation)));
 
 	setStatus(SysTrayIcon::StatusOn);
 	_qsystray->show();
@@ -162,7 +163,7 @@ void SysTrayIcon::setStatus(const Status status, const QString *arg)
 		case SysTrayIcon::StatusOn:
 			_switchOnBacklightAction->setEnabled(false);
 			_switchOffBacklightAction->setEnabled(true);
-			_qsystray->setIcon(QIcon(*_pixmapCache["on32"]));
+			_qsystray->setIcon(QIcon(*_pixmapCache[QStringLiteral("on32")]));
 
 			if (SettingsScope::Settings::isProfileLoaded())
 				_qsystray->setToolTip(tr("Enabled profile: %1").arg(SettingsScope::Settings::getCurrentProfileName()));
@@ -171,31 +172,31 @@ void SysTrayIcon::setStatus(const Status status, const QString *arg)
 		case SysTrayIcon::StatusLockedByApi:
 			_switchOnBacklightAction->setEnabled(false);
 			_switchOffBacklightAction->setEnabled(true);
-			_qsystray->setIcon(QIcon(*_pixmapCache["lock32"]));
+			_qsystray->setIcon(QIcon(*_pixmapCache[QStringLiteral("lock32")]));
 			_qsystray->setToolTip(tr("Device locked via API"));
 			break;
 		case SysTrayIcon::StatusLockedByPlugin:
-			_qsystray->setIcon(QIcon(*_pixmapCache["lock32"]));
+			_qsystray->setIcon(QIcon(*_pixmapCache[QStringLiteral("lock32")]));
 			_qsystray->setToolTip(tr("Device locked via Plugin") + " (" + (*arg) + ")");
 			break;
 		case SysTrayIcon::StatusApiPersist:
 			_switchOnBacklightAction->setEnabled(true);
 			_switchOffBacklightAction->setEnabled(true);
-			_qsystray->setIcon(QIcon(*_pixmapCache["persist32"]));
+			_qsystray->setIcon(QIcon(*_pixmapCache[QStringLiteral("persist32")]));
 			_qsystray->setToolTip(tr("API colors persisted"));
 			break;
 
 		case SysTrayIcon::StatusOff:
 			_switchOnBacklightAction->setEnabled(true);
 			_switchOffBacklightAction->setEnabled(false);
-			_qsystray->setIcon(QIcon(*_pixmapCache["off32"]));
+			_qsystray->setIcon(QIcon(*_pixmapCache[QStringLiteral("off32")]));
 			_qsystray->setToolTip(tr("Disabled"));
 			break;
 
 		case SysTrayIcon::StatusError:
 			_switchOnBacklightAction->setEnabled(false);
 			_switchOffBacklightAction->setEnabled(true);
-			_qsystray->setIcon(QIcon(*_pixmapCache["error32"]));
+			_qsystray->setIcon(QIcon(*_pixmapCache[QStringLiteral("error32")]));
 			_qsystray->setToolTip(tr("Error with connection device, verbose in logs"));
 			break;
 		default:
@@ -219,19 +220,21 @@ void SysTrayIcon::updateProfiles()
 void SysTrayIcon::onCheckUpdate_Finished()
 {
 	using namespace SettingsScope;
-	QList<UpdateInfo> updates = _updatesProcessor.readUpdates();
-	if (updates.size() > 0) {
-		if (updates.size() > 1) {
+	const UpdateInfo& update = _updatesProcessor.readUpdates();
+	const QVersionNumber& thisVersion = QVersionNumber::fromString(QStringLiteral(VERSION_STR));
+	const int versionDifference = QVersionNumber::compare(update.softwareVersion, thisVersion);
+
+	if (versionDifference > 0) {
+		if (versionDifference > 1) {
 			_trayMessage = SysTrayIcon::MessageGeneric;
-			_trayMsgUrl = QUrl("https://github.com/psieg/Lightpack/releases");
-			_qsystray->showMessage("Multiple updates are available", "Click to open the downloads page");
+			_trayMsgUrl = QUrl(QStringLiteral("https://github.com/psieg/Lightpack/releases"));
+			_qsystray->showMessage(QStringLiteral("Multiple updates are available"), QStringLiteral("Click to open the downloads page"));
 		} else {
-			UpdateInfo& update = updates.last();
 #ifdef Q_OS_WIN
 			if (Settings::isInstallUpdatesEnabled() && !update.pkgUrl.isEmpty() && !update.sigUrl.isEmpty()) {
 				_trayMessage = SysTrayIcon::MessageNoAction;
 				_trayMsgUrl = QUrl("");
-				_qsystray->showMessage("Prismatik Update", "An update is being downloaded and will be applied shortly.");
+				_qsystray->showMessage(QStringLiteral("Prismatik Update"), QStringLiteral("An update is being downloaded and will be applied shortly."));
 				_updatesProcessor.loadUpdate(update);
 				return;
 			}
@@ -260,7 +263,7 @@ void SysTrayIcon::onTrayIcon_MessageClicked()
 			if (SettingsScope::Settings::getConnectedDevice() == SupportedDevices::DeviceTypeLightpack)
 			{
 				// Open lightpack downloads page
-				QDesktopServices::openUrl(QUrl("https://github.com/psieg/Lightpack/releases", QUrl::TolerantMode));
+				QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/psieg/Lightpack/releases"), QUrl::TolerantMode));
 			}
 			break;
 		case SysTrayIcon::MessageGeneric:
@@ -323,20 +326,20 @@ void SysTrayIcon::createActions()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-	_switchOnBacklightAction = new QAction(QIcon(":/icons/on.png"), tr("&Turn on"), this);
+	_switchOnBacklightAction = new QAction(QIcon(QStringLiteral(":/icons/on.png")), tr("&Turn on"), this);
 	_switchOnBacklightAction->setIconVisibleInMenu(true);
 	connect(_switchOnBacklightAction, SIGNAL(triggered()), this, SIGNAL(backlightOn()));
 
-	_switchOffBacklightAction = new QAction(QIcon(":/icons/off.png"), tr("&Turn off"), this);
+	_switchOffBacklightAction = new QAction(QIcon(QStringLiteral(":/icons/off.png")), tr("&Turn off"), this);
 	_switchOffBacklightAction->setIconVisibleInMenu(true);
 	connect(_switchOffBacklightAction, SIGNAL(triggered()), this, SIGNAL(backlightOff()));
 
 
 	_profilesMenu = new QMenu(tr("&Profiles"));
-	_profilesMenu->setIcon(QIcon(":/icons/profiles.png"));
+	_profilesMenu->setIcon(QIcon(QStringLiteral(":/icons/profiles.png")));
 	_profilesMenu->clear();
 
-	_settingsAction = new QAction(QIcon(":/icons/settings.png"), tr("&Settings"), this);
+	_settingsAction = new QAction(QIcon(QStringLiteral(":/icons/settings.png")), tr("&Settings"), this);
 	_settingsAction->setIconVisibleInMenu(true);
 	connect(_settingsAction, SIGNAL(triggered()), this, SIGNAL(showSettings()));
 
