@@ -36,7 +36,7 @@ namespace SystemSession {
         static EventFilter* create();
 
     signals:
-        void sessionChangeDetected(int status);
+        void sessionChangeDetected(Status status);
     };
 }
 

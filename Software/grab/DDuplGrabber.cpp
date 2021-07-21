@@ -281,7 +281,7 @@ QList< ScreenInfo > * DDuplGrabber::__screensWithWidgets(QList< ScreenInfo > * r
 	return result;
 }
 
-void DDuplGrabber::onSessionChange(int change)
+void DDuplGrabber::onSessionChange(SystemSession::Status change)
 {
 	if (change == SystemSession::Status::Locking)
 	{

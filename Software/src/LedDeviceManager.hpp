@@ -30,7 +30,9 @@
 #include "AbstractLedDevice.hpp"
 
 class QTimer;
-
+namespace SystemSession {
+	enum Status;
+};
 /*!
 	This class creates \a ILedDevice implementations and manages them after.
 	It is always better way to interact with ILedDevice through \code LedDeviceManager \endcode.
@@ -92,6 +94,7 @@ public slots:
 	void requestFirmwareVersion();
 	void updateWBAdjustments();
 	void updateDeviceSettings();
+	void onSessionChange(SystemSession::Status status);
 
 private slots:
 	void ledDeviceCommandCompleted(bool ok);

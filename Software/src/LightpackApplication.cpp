@@ -232,6 +232,7 @@ void LightpackApplication::initializeAll()
         QSharedPointer<SystemSession::EventFilter> sessionChangeDetector(eventFilter);
         connect(sessionChangeDetector.data(), &SystemSession::EventFilter::sessionChangeDetected, this, &LightpackApplication::onSessionChange);
         connect(sessionChangeDetector.data(), &SystemSession::EventFilter::sessionChangeDetected, m_grabManager, &GrabManager::onSessionChange);
+        connect(sessionChangeDetector.data(), &SystemSession::EventFilter::sessionChangeDetected, m_ledDeviceManager, &LedDeviceManager::onSessionChange);
         m_EventFilters.push_back(sessionChangeDetector);
     }
 	for (EventFilters::const_iterator it = m_EventFilters.cbegin(); it != m_EventFilters.cend(); ++it)
@@ -390,7 +391,7 @@ void LightpackApplication::quitFromWizard(int result)
 	quit();
 }
 
-void LightpackApplication::onSessionChange(int change)
+void LightpackApplication::onSessionChange(SystemSession::Status change)
 {
 	switch (change)
 	{

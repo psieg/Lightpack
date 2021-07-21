@@ -35,6 +35,7 @@ class TimeEvaluations;
 class D3D10Grabber;
 
 namespace BlueLightReduction { class Client; };
+namespace SystemSession { enum Status; };
 
 class GrabManager : public QObject
 {
@@ -48,7 +49,7 @@ signals:
 	void updateLedsColors(const QList<QRgb> & colors);
 	void ambilightTimeOfUpdatingColors(double ms);
 	void changeScreen();
-	void onSessionChange(int change);
+	void onSessionChange(SystemSession::Status change);
 
 public:
 

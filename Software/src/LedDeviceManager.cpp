@@ -40,6 +40,7 @@
 #include "LedDeviceDnrgb.hpp"
 #include "LedDeviceWarls.hpp"
 #include "Settings.hpp"
+#include "SystemSession.hpp"
 
 using namespace SettingsScope;
 
@@ -696,4 +697,12 @@ void LedDeviceManager::ledDeviceCommandTimedOut()
 	emit ioDeviceSuccess(false);
 }
 
+void LedDeviceManager::onSessionChange(SystemSession::Status status)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "status:" << status;
 
+	if (status == SystemSession::Status::Sleeping)
+		m_ledDevice->close();
+	else if (status == SystemSession::Status::Resuming)
+		recreateLedDevice();
+}
