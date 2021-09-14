@@ -1,5 +1,14 @@
 <updates>
 <update>
+        <id>20</id>
+        <url>https://github.com/psieg/Lightpack/releases</url>
+        <pkgUrl>https://github.com/psieg/Lightpack/releases/download/5.11.2.30/Prismatik.unofficial.64bit.Setup.5.11.2.30.exe</pkgUrl>
+        <sigUrl>https://github.com/psieg/Lightpack/releases/download/5.11.2.30/Prismatik.unofficial.64bit.Setup.5.11.2.30.exe.updater_signature</sigUrl>
+        <title>Version 5.11.2.30 is available</title>
+        <text>* Fix Lights not working after sleep</text>
+        <softwareVersion>lt5.11.2.30</softwareVersion>
+</update>
+<update>
         <id>19</id>
         <url>https://github.com/psieg/Lightpack/releases</url>
         <pkgUrl>https://github.com/psieg/Lightpack/releases/download/5.11.2.29/Prismatik.unofficial.64bit.Setup.5.11.2.29.exe</pkgUrl>
