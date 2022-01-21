@@ -1,5 +1,14 @@
 <updates>
 <update>
+        <id>21</id>
+        <url>https://github.com/psieg/Lightpack/releases</url>
+        <pkgUrl>https://github.com/psieg/Lightpack/releases/download/5.11.2.31/Prismatik.unofficial.64bit.Setup.5.11.2.31.exe</pkgUrl>
+        <sigUrl>https://github.com/psieg/Lightpack/releases/download/5.11.2.31/Prismatik.unofficial.64bit.Setup.5.11.2.31.exe.updater_signature</sigUrl>
+        <title>Version 5.11.2.31 is available</title>
+        <text>* Fix HDR flickering on Windows</text>
+        <softwareVersion>lt5.11.2.31</softwareVersion>
+</update>
+<update>
         <id>20</id>
         <url>https://github.com/psieg/Lightpack/releases</url>
         <pkgUrl>https://github.com/psieg/Lightpack/releases/download/5.11.2.30/Prismatik.unofficial.64bit.Setup.5.11.2.30.exe</pkgUrl>
