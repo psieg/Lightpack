@@ -44,9 +44,12 @@ jobs:
           sudo apt update
           sudo apt install flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          echo "foo"
       - name: Build
         working-directory: Software/dist_linux
-        run: ./build-natively.sh flatpak
+        run: |
+          echo "bar"
+          ./build-natively.sh flatpak
       - name: Check Package
         run: |
           set -xe
