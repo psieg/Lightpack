@@ -15,7 +15,7 @@ sed '
 
 rm -rf "$destdir/flatdir" "$destdir/repo"
 # flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user --assumeyes org.kde.Sdk//"$kde_version" org.kde.Platform//"$kde_version"
+flatpak install --user --assumeyes org.kde.Sdk//"$kde_version" org.kde.Platform//"$kde_version" > /dev/null
 sudo rm -rf /var/tmp/flatpak-cache-*
 sudo apt-get autoclean
 ps -ux
