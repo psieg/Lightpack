@@ -15,11 +15,15 @@ sed '
 
 rm -rf "$destdir/flatdir" "$destdir/repo"
 # flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+echo "######################## install"
 flatpak install --user --assumeyes org.kde.Sdk//"$kde_version" org.kde.Platform//"$kde_version"
+echo "######################## build"
 flatpak-builder --delete-build-dirs --repo="$destdir/repo" "$destdir/flatdir" "$flatpak_id.yml"
 # flatpak build-export "$destdir/repo" "$destdir/flatdir"
+echo "######################## bundle"
 flatpak build-bundle "$destdir/repo" "prismatik_$VERSION.flatpak" "$flatpak_id"
 # flatpak run de.psieg.Prismatik
+echo "######################## cleanup"
 rm -rf "$destdir"
 rm -rf .flatpak-builder
 rm -rf "$flatpak_id.yml"
