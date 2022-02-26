@@ -19,6 +19,8 @@ echo "######################## install"
 ps -ux
 flatpak install --user --assumeyes org.kde.Sdk//"$kde_version" org.kde.Platform//"$kde_version"
 echo "######################## build"
+sudo rm -rf /var/tmp/flatpak-cache-*
+sudo apt-get autoclean
 ps -ux
 flatpak-builder --disable-cache --jobs=1 --delete-build-dirs --repo="$destdir/repo" "$destdir/flatdir" "$flatpak_id.yml"
 # flatpak build-export "$destdir/repo" "$destdir/flatdir"
