@@ -15,14 +15,11 @@ sed '
 
 rm -rf "$destdir/flatdir" "$destdir/repo"
 # flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-echo "######################## install"
-ps -ux
 flatpak install --user --assumeyes org.kde.Sdk//"$kde_version" org.kde.Platform//"$kde_version"
-echo "######################## build"
 sudo rm -rf /var/tmp/flatpak-cache-*
 sudo apt-get autoclean
 ps -ux
-flatpak-builder --disable-cache --jobs=1 --delete-build-dirs --repo="$destdir/repo" "$destdir/flatdir" "$flatpak_id.yml"
+flatpak-builder --disable-cache --delete-build-dirs --repo="$destdir/repo" "$destdir/flatdir" "$flatpak_id.yml" > /dev/null
 # flatpak build-export "$destdir/repo" "$destdir/flatdir"
 rm -rf .flatpak-builder
 echo "######################## bundle"
