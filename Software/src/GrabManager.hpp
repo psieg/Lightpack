@@ -85,6 +85,7 @@ private slots:
 	void handleGrabbedColors();
 	void timeoutFakeGrab();
 	void timeoutUpdateFPS();
+	void timeoutDeviceFail();
 	void pauseWhileResizeOrMoving();
 	void resumeAfterResizeOrMoving();
 	void onFrameGrabAttempted(GrabResult result);
@@ -117,6 +118,7 @@ private:
 
 	QTimer *m_timerUpdateFPS;
 	QTimer *m_timerFakeGrab;
+	QTimer *m_timerDeviceFail;
 	QWidget *m_parentWidget;
 	QList<GrabWidget *> m_ledWidgets;
 	QList<QRgb> m_grabResult;

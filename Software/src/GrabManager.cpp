@@ -50,6 +50,7 @@ using namespace SettingsScope;
 using namespace std::chrono_literals;
 constexpr const std::chrono::milliseconds FPS_UPDATE_INTERVAL = 500ms;
 constexpr const std::chrono::milliseconds FAKE_GRAB_INTERVAL = 900ms;
+constexpr const std::chrono::milliseconds FAIL_STOP_INTERVAL = 10s;
 
 #ifdef D3D10_GRAB_SUPPORT
 
@@ -93,6 +94,11 @@ GrabManager::GrabManager(QWidget *parent) : QObject(parent)
 	connect(m_timerFakeGrab, &QTimer::timeout, this, &GrabManager::timeoutFakeGrab);
 	m_timerFakeGrab->setSingleShot(false);
 	m_timerFakeGrab->setInterval(FAKE_GRAB_INTERVAL);
+
+	m_timerDeviceFail = new QTimer(this);
+	connect(m_timerFakeGrab, &QTimer::timeout, this, &GrabManager::timeoutDeviceFail);
+	m_timerFakeGrab->setSingleShot(true);
+	m_timerFakeGrab->setInterval(FAIL_STOP_INTERVAL);
 
 	m_isPauseGrabWhileResizeOrMoving = false;
 	m_isGrabWidgetsVisible = false;
@@ -159,18 +165,17 @@ void GrabManager::start(bool isGrabEnabled)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << isGrabEnabled;
 
+	m_timerDeviceFail->stop();
 	clearColorsNew();
 
 	m_isGrabbingStarted = isGrabEnabled;
-	if (!isGrabEnabled && m_isGrabbingSuspendedDueToDeviceError) {
-		m_isGrabbingSuspendedDueToDeviceError = false; // Don't restart after device recovery if the user stopped
-	}
 
 	if (m_grabber != NULL) {
 		if (isGrabEnabled) {
 			m_timerUpdateFPS->start();
 			m_grabber->startGrabbing();
 			m_isGrabbingSuspendedDueToDeviceError = false;
+			m_timerDeviceFail->stop();
 		} else {
 			clearColorsCurrent();
 			m_timerUpdateFPS->stop();
@@ -179,29 +184,38 @@ void GrabManager::start(bool isGrabEnabled)
 			emit ambilightTimeOfUpdatingColors(0);
 		}
 	}
+
+	if (!isGrabEnabled && m_isGrabbingSuspendedDueToDeviceError) {
+		m_isGrabbingSuspendedDueToDeviceError = false; // Don't restart after device recovery if the user stopped
+	}
 }
 
 void GrabManager::ledDeviceCallSuccess(bool isSuccess) {
 	if (!isSuccess) {
 		if (!m_isGrabbingSuspendedDueToDeviceError) {
 			if (m_isGrabbingStarted) {
-				DEBUG_LOW_LEVEL << Q_FUNC_INFO << "stopping grabbing while device is not available";
-				start(false);
-				m_isGrabbingSuspendedDueToDeviceError = true; // Stop clears the bit (for user stop), so re-set it here
+				DEBUG_MID_LEVEL << Q_FUNC_INFO << "will stop grabbing if device keeps failing";
+				if (!m_timerDeviceFail->isActive()) m_timerDeviceFail->start();
 			}
 		}
-	} else if (m_isGrabbingSuspendedDueToDeviceError) {
-		m_isGrabbingSuspendedDueToDeviceError = false;
-		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "device available again, resuming grabbing";
-		start(true);
+	} else {
+		m_timerDeviceFail->stop();
+		if (m_isGrabbingSuspendedDueToDeviceError) {
+			m_isGrabbingSuspendedDueToDeviceError = false;
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "device available again, resuming grabbing";
+			start(true);
+		}
 	}
 }
 
 void GrabManager::ledDeviceOpenSuccess(bool isSuccess) {
-	if (isSuccess && m_isGrabbingSuspendedDueToDeviceError) {
-		m_isGrabbingSuspendedDueToDeviceError = false;
-		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "device available again, resuming grabbing";
-		start(true);
+	if (isSuccess) {
+		m_timerDeviceFail->stop(); 
+		if (m_isGrabbingSuspendedDueToDeviceError) {
+			m_isGrabbingSuspendedDueToDeviceError = false;
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "device available again, resuming grabbing";
+			start(true);
+		}
 	}
 }
 
@@ -520,6 +534,14 @@ void GrabManager::timeoutUpdateFPS()
 
 	m_grabCountLastInterval = m_grabCountThisInterval;
 	m_grabCountThisInterval = 0;
+}
+
+void GrabManager::timeoutDeviceFail()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "stopping grabbing while device is not available";
+	start(false);
+	m_isGrabbingSuspendedDueToDeviceError = true; // Stop clears the bit (for user stop), so re-set it here
+
 }
 
 void GrabManager::pauseWhileResizeOrMoving()
