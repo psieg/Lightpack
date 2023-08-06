@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
-      - run: choco install --no-progress openssl
+      - run: choco install --no-progress openssl --version=1.1.1.2100
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
