@@ -66,7 +66,7 @@ Source: "content/prismatik-unhook32.dll"; DestDir: "{app}"; MinVersion: 6.1.7600
 Source: "content/UpdateElevate.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "content/platforms/*"; DestDir: "{app}\platforms"; Flags: ignoreversion
 Source: "content/styles/*"; DestDir: "{app}\styles"; Flags: ignoreversion
-Source: "content/tls/qschannelbackend.dll"; DestDir: "{app}\styles"; Flags: ignoreversion
+Source: "content/tls/qschannelbackend.dll"; DestDir: "{app}\tls"; Flags: ignoreversion
 Source: "content/Plugins/*"; DestDir: "{#UserSettingsDirName}\Plugins"; Flags: onlyifdoesntexist createallsubdirs recursesubdirs
 ; These are needed only when including the bass library for sound visualization
 Source: "content/bass.dll"; DestDir: "{app}"; Flags: ignoreversion

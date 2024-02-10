@@ -20,3 +20,4 @@ cp bin/*.exe dist_windows/content/
 
 cp -r bin/platforms dist_windows/content/
 cp -r bin/styles dist_windows/content/
+cp -r bin/tls dist_windows/content/
