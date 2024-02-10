@@ -142,8 +142,12 @@ win32 {
             if $(PlatformToolsetVersion) EQU 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) GTR 140 copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)
         !contains(DEFINES, NO_OPENSSL) {
-            # QT switched to OpenSSL 1.1 in 5.12.4, which has different binary names
-            versionAtLeast(QT_VERSION, "5.12.4") {
+            # QT switched to OpenSSL 1.1 in 5.12.4 and to 3.x in 6, which has different binary names
+            versionAtLeast(QT_VERSION, "6.0.0") {
+                QMAKE_POST_LINK += copy /y \"$${OPENSSL_DIR}\\libcrypto-3-x64.dll\" .\ $$escape_expand(\r\n)\
+                    copy /y \"$${OPENSSL_DIR}\\libssl-3-x64.dll\" .\ $$escape_expand(\r\n)\
+                    IF EXIST  \"$${OPENSSL_DIR}\\msvcr*.dll\" copy /y \"$${OPENSSL_DIR}\\msvcr*.dll\" .\ $$escape_expand(\r\n)
+            } else:versionAtLeast(QT_VERSION, "5.12.4") {
                 QMAKE_POST_LINK += copy /y \"$${OPENSSL_DIR}\\libcrypto-1_1-x64.dll\" .\ $$escape_expand(\r\n)\
                     copy /y \"$${OPENSSL_DIR}\\libssl-1_1-x64.dll\" .\ $$escape_expand(\r\n)\
                     IF EXIST  \"$${OPENSSL_DIR}\\msvcr*.dll\" copy /y \"$${OPENSSL_DIR}\\msvcr*.dll\" .\ $$escape_expand(\r\n)

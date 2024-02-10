@@ -145,7 +145,7 @@ void LightpackApplication::determineConfigDir(QString overrideDir)
 	cout << "Configuration directory: " << appDirPath.toStdString() << endl;
 
 	m_configDirPath = appDirPath;
-	setLibraryPaths(QStringList(appDirPath + QStringLiteral("/plugins")));
+	addLibraryPath(appDirPath + QStringLiteral("/plugins"));
 	setId("Prismatik-" + m_configDirPath);
 }
 
