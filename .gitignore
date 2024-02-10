@@ -56,7 +56,8 @@ Software/dmg/contents
 build-vars.prf
 debug/
 release/
-Software/dist_windows/content
+Software/dist_windows/content/*
+!Software/dist_windows/content/UpdateElevate.exe
 Software/lib
 Software/.vs
 *.vcxproj

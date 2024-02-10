@@ -66,11 +66,8 @@ Source: "content/prismatik-unhook32.dll"; DestDir: "{app}"; MinVersion: 6.1.7600
 Source: "content/UpdateElevate.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "content/platforms/*"; DestDir: "{app}\platforms"; Flags: ignoreversion
 Source: "content/styles/*"; DestDir: "{app}\styles"; Flags: ignoreversion
-Source: "content/tls/qopensslbackend.dll"; DestDir: "{app}\tls"; Flags: ignoreversion
+Source: "content/tls/qschannelbackend.dll"; DestDir: "{app}\tls"; Flags: ignoreversion
 Source: "content/Plugins/*"; DestDir: "{#UserSettingsDirName}\Plugins"; Flags: onlyifdoesntexist createallsubdirs recursesubdirs
-; Use ssleay32.dll and libeay32.dll here for OpenSSL < 1.1, 1_1 instead of 3 for OpenSSL 1.1
-Source: "content/libcrypto-3-x64.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "content/libssl-3-x64.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; These are needed only when including the bass library for sound visualization
 Source: "content/bass.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "content/basswasapi.dll"; DestDir: "{app}"; Flags: ignoreversion
