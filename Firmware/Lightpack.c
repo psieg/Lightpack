@@ -117,8 +117,8 @@ static inline void SetupHardware(void)
 static inline void enableWatchdog(void)
 {
     wdt_reset();
-    // Watchdog configuration: interrupt after 250ms and reset after 500ms;
-    wdt_enable(WDTO_250MS);
+    // Watchdog configuration: interrupt after 500ms and reset after 1000ms;
+    wdt_enable(WDTO_500MS);
     // Enable watchdog interrupt
     WDTCSR |= _BV(WDIE);
 }
