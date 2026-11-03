@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <QElapsedTimer>
+
 #include "AbstractLedDevice.hpp"
 #include "colorspace_types.h"
 #include <QtSerialPort/QSerialPort>
@@ -67,4 +69,8 @@ private:
 	QString m_portName;
 	int m_baudRate;
 	QTimer* m_lastWillTimer{nullptr};
+	QElapsedTimer m_stuckTimer;
+	QTimer* m_offRepeatTimer{nullptr};
+	QByteArray m_offBuffer;
+	int m_offRepeatsLeft{0};
 };
