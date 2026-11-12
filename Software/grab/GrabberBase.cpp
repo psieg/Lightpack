@@ -96,6 +96,15 @@ bool GrabberBase::isGrabbingStarted() const
 
 const GrabbedScreen * GrabberBase::screenOfWidget(const GrabWidget& widget) const
 {
+#if defined(Q_OS_WIN)
+	HMONITOR widgetMonitor = MonitorFromWindow(reinterpret_cast<HWND>(widget.winId()), MONITOR_DEFAULTTONULL);
+	if (widgetMonitor != NULL) {
+		for (int i = 0; i < _screensWithWidgets.size(); ++i) {
+			if (_screensWithWidgets[i].screenInfo.handle == widgetMonitor)
+				return &_screensWithWidgets[i];
+		}
+	}
+#endif
 	QRect rect = widget.deviceFrameGeometry();
 	QPoint center = rect.center();
 	for (int i = 0; i < _screensWithWidgets.size(); ++i) {

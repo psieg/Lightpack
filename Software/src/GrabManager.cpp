@@ -97,20 +97,15 @@ GrabManager::GrabManager(QWidget *parent) : QObject(parent)
 	m_isPauseGrabWhileResizeOrMoving = false;
 	m_isGrabWidgetsVisible = false;
 	m_isGrabbingStarted = false;
+	m_isScreenResizePending = false;
 
 	initColorLists(MaximumNumberOfLeds::Default);
 	initLedWidgets(MaximumNumberOfLeds::Default);
 
-	int idx = 0;
-	for (const QScreen* screen : QGuiApplication::screens()) {
-		connect(screen, &QScreen::geometryChanged,
-			[=](const QRect& geometry) { this->scaleLedWidgets(idx, geometry); }
-		);
-		++idx;
-	}
+	setupScreenConnections();
 
-	connect(qGuiApp, &QGuiApplication::screenAdded, this, &GrabManager::onScreenCountChanged);
-	connect(qGuiApp, &QGuiApplication::screenRemoved, this, &GrabManager::onScreenCountChanged);
+	connect(qGuiApp, &QGuiApplication::screenAdded, this, &GrabManager::onScreenAdded);
+	connect(qGuiApp, &QGuiApplication::screenRemoved, this, &GrabManager::onScreenRemoved);
 
 	updateScreenGeometry();
 
@@ -538,9 +533,9 @@ void GrabManager::updateScreenGeometry()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 	m_lastScreenGeometry.clear();
-	QList<QScreen*> screenList = QGuiApplication::screens();
-	foreach(QScreen* screen, screenList) {
-		m_lastScreenGeometry.append(screen->geometry());
+	const QList<QScreen*> screenList = QGuiApplication::screens();
+	for (QScreen* screen : screenList) {
+		m_lastScreenGeometry.insert(screen, screen->geometry());
 	}
 
 	emit changeScreen();
@@ -549,76 +544,106 @@ void GrabManager::updateScreenGeometry()
 		qCritical() << Q_FUNC_INFO << "m_grabber == NULL";
 		return;
 	}
-
 }
 
-void GrabManager::onScreenCountChanged(QScreen* screen)
+void GrabManager::setupScreenConnections()
 {
-	Q_UNUSED(screen)
-	updateScreenGeometry();
+	for (const QMetaObject::Connection &conn : m_screenConnections) {
+		disconnect(conn);
+	}
+	m_screenConnections.clear();
+
+	for (const QScreen* screen : QGuiApplication::screens()) {
+		m_screenConnections.append(connect(screen, &QScreen::geometryChanged, this, [this](const QRect&) {
+			this->scheduleScreenGeometryUpdate();
+		}));
+	}
 }
 
-void GrabManager::scaleLedWidgets(const int screenIndexResized, const QRect& screenGeometry)
+void GrabManager::onScreenAdded(QScreen* screen)
 {
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "screenIndexResized:" << screenIndexResized;
-
-	QRect lastScreenGeometry = m_lastScreenGeometry[screenIndexResized];
-
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "screen " << screenIndexResized << " is resized to " << screenGeometry;
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "was " << lastScreenGeometry;
-
-	int deltaX = lastScreenGeometry.x() - screenGeometry.x();
-	int deltaY = lastScreenGeometry.y() - screenGeometry.y();
-
-	double scaleX = (double)screenGeometry.width() / lastScreenGeometry.width();
-	double scaleY = (double)screenGeometry.height() / lastScreenGeometry.height();
-
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "deltaX =" << deltaX << "deltaY =" << deltaY;
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "scaleX =" << scaleX << "scaleY =" << scaleY;
-
-	if ((deltaX != 0 || deltaY != 0) && (scaleX != 1 || scaleY != 1)) {
-		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Screen was resized and scaled, trying to restore configured widget positions";
-
-		for (int i = 0; i < m_ledWidgets.size(); i++){
-			m_ledWidgets[i]->settingsProfileChanged();
-		}
-	} else {
-		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Screen was resized or scaled, temporarily adjusting";
-
-		for (int i = 0; i < m_ledWidgets.size(); i++){
-
-			if (!lastScreenGeometry.contains(m_ledWidgets[i]->geometry().center()))
-				continue;
-
-			int width = PrismatikMath::round(scaleX * m_ledWidgets[i]->width());
-			int height = PrismatikMath::round(scaleY * m_ledWidgets[i]->height());
-
-			int x = m_ledWidgets[i]->x();
-			int y = m_ledWidgets[i]->y();
-
-			x -= screenGeometry.x();
-			y -= screenGeometry.y();
-
-			x = PrismatikMath::round(scaleX * x);
-			y = PrismatikMath::round(scaleY * y);
-
-			x += screenGeometry.x();
-			y += screenGeometry.y();
-
-			x -= deltaX;
-			y -= deltaY;
-
-			m_ledWidgets[i]->move(x, y);
-			m_ledWidgets[i]->resize(width, height);
-
-			// keep the original values in the configuration
-			// m_ledWidgets[i]->saveSizeAndPosition();
-
-			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "new values [" << i << "]" << "x =" << x << "y =" << y << "w =" << width << "h =" << height;
+	if (screen && !m_lastScreenGeometry.contains(screen)) {
+		m_lastScreenGeometry.insert(screen, screen->geometry());
+	}
+	setupScreenConnections();
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	for (int i = 0; i < m_ledWidgets.size(); ++i) {
+		if (QScreen *targetScreen = QGuiApplication::screenAt(m_ledWidgets[i]->geometry().center())) {
+			m_ledWidgets[i]->setScreen(targetScreen);
+			if (QWindow *wh = m_ledWidgets[i]->windowHandle()) {
+				wh->setGeometry(m_ledWidgets[i]->geometry());
+			}
 		}
 	}
+#endif
+	emit changeScreen();
+}
 
-	m_lastScreenGeometry[screenIndexResized] = screenGeometry;
+void GrabManager::onScreenRemoved(QScreen* screen)
+{
+	m_lastScreenGeometry.remove(screen);
+	setupScreenConnections();
+	emit changeScreen();
+}
+
+void GrabManager::scheduleScreenGeometryUpdate()
+{
+	if (m_isScreenResizePending)
+		return;
+
+	m_isScreenResizePending = true;
+	QTimer::singleShot(0, this, &GrabManager::applyScreenGeometryChanges);
+}
+
+void GrabManager::applyScreenGeometryChanges()
+{
+	m_isScreenResizePending = false;
+
+	const QList<QScreen*> screens = QGuiApplication::screens();
+
+	for (int i = 0; i < m_ledWidgets.size(); ++i) {
+		const QPoint widgetCenter = m_ledWidgets[i]->geometry().center();
+		QScreen *matchedScreen = nullptr;
+		QRect lastScreenGeometry;
+
+		for (QScreen *screen : screens) {
+			const QRect prevGeom = m_lastScreenGeometry.value(screen);
+			if (!prevGeom.isEmpty() && prevGeom.contains(widgetCenter)) {
+				matchedScreen = screen;
+				lastScreenGeometry = prevGeom;
+				break;
+			}
+		}
+
+		if (!matchedScreen)
+			continue;
+
+		const QRect screenGeometry = matchedScreen->geometry();
+		if (screenGeometry.isEmpty() || screenGeometry == lastScreenGeometry)
+			continue;
+
+		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "screen resized from" << lastScreenGeometry << "to" << screenGeometry;
+
+		const double scaleX = static_cast<double>(screenGeometry.width()) / lastScreenGeometry.width();
+		const double scaleY = static_cast<double>(screenGeometry.height()) / lastScreenGeometry.height();
+
+		const int width = qMax(1, static_cast<int>(PrismatikMath::round(scaleX * m_ledWidgets[i]->width())));
+		const int height = qMax(1, static_cast<int>(PrismatikMath::round(scaleY * m_ledWidgets[i]->height())));
+		const int x = screenGeometry.x() + static_cast<int>(PrismatikMath::round(scaleX * (m_ledWidgets[i]->x() - lastScreenGeometry.x())));
+		const int y = screenGeometry.y() + static_cast<int>(PrismatikMath::round(scaleY * (m_ledWidgets[i]->y() - lastScreenGeometry.y())));
+
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+		m_ledWidgets[i]->setScreen(matchedScreen);
+#endif
+		m_ledWidgets[i]->move(x, y);
+		m_ledWidgets[i]->resize(width, height);
+
+		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "new values [" << i << "]" << "x =" << x << "y =" << y << "w =" << width << "h =" << height;
+	}
+
+	for (QScreen *screen : screens) {
+		m_lastScreenGeometry.insert(screen, screen->geometry());
+	}
 }
 
 void GrabManager::initGrabbers()
