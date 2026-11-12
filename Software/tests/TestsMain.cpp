@@ -7,6 +7,7 @@
 #include "HooksTest.h"
 #endif
 #include "LightpackCommandLineParserTest.hpp"
+#include "SettingsMigrationTest.hpp"
 #include "debug.h"
 
 #include <iostream>
@@ -24,6 +25,7 @@ int main(int argc, char *argv[])
 	QStringList summary;
 
 	tests.append(new GrabCalculationTest());
+	tests.append(new SettingsMigrationTest());
 
 #ifdef Q_OS_WIN
 	tests.append(new HooksTest());
