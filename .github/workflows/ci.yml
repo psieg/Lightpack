@@ -203,7 +203,7 @@ jobs:
 
   build-macos:
     name: macOS Build
-    runs-on: macos-15
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v7
       - name: Select Latest Xcode
