@@ -10,11 +10,11 @@ defaults:
     working-directory: ./Software
 jobs:
   build-pacman:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     name: pacman Build (Arch Linux)
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Build
         working-directory: Software/dist_linux
         run: ./build-in-docker.sh pacman archlinux latest
@@ -25,22 +25,22 @@ jobs:
           echo "PKG_PATH=Software/$PKG_PATH" >> $GITHUB_ENV
           echo "PKG_NAME=$(basename $PKG_PATH)" >> $GITHUB_ENV
       - name: Upload Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}
           path: ${{ env.PKG_PATH }}
 
   build-flatpack:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     name: Flatpack Build
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install Flatpak
         run: |
           set -xe
           sudo apt update
-          sudo apt install flatpak flatpak-builder
+          sudo apt install -y flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
       - name: Build
         working-directory: Software/dist_linux
@@ -52,20 +52,20 @@ jobs:
           echo "PKG_PATH=Software/$PKG_PATH" >> $GITHUB_ENV
           echo "PKG_NAME=$(basename $PKG_PATH)" >> $GITHUB_ENV
       - name: Upload Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}
           path: ${{ env.PKG_PATH }}
 
   build-dpkg:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        os: [ 'ubuntu 22.04', 'ubuntu 20.04', 'debian 12.4' ]
+        os: [ 'ubuntu 24.04', 'ubuntu 22.04', 'debian 12' ]
     name: dpkg Build (${{ matrix.os }})
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Build
         working-directory: Software/dist_linux
         run: ./build-in-docker.sh dpkg ${{ matrix.os }}
@@ -76,45 +76,63 @@ jobs:
           echo "PKG_PATH=Software/$PKG_PATH" >> $GITHUB_ENV
           echo "PKG_NAME=$(basename $PKG_PATH | sed 's#amd64#${{ matrix.os }}_amd64#; s# ##')" >> $GITHUB_ENV
       - name: Upload Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}
           path: ${{ env.PKG_PATH }}
 
   build-fw:
     name: Firmware Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - run: sudo apt-get install gcc-avr avr-libc build-essential
+      - uses: actions/checkout@v7
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-avr avr-libc build-essential
       - run: ./build_batch.sh
         working-directory: ./Firmware
       - name: Archive artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware
           path: Firmware/hex/*
 
   build-win:
     name: Windows Build
-    runs-on: windows-2019
+    runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - run: choco install --no-progress openssl
+      - name: Ensure OpenSSL 3
+        shell: powershell
+        run: |
+          $dirs = @("C:\Program Files\OpenSSL", "C:\Program Files\OpenSSL-Win64")
+          $found = $dirs | Where-Object {
+            (Test-Path "$_\bin\libcrypto-3-x64.dll") -and (Test-Path "$_\lib\VC\x64\MD\libcrypto.lib")
+          } | Select-Object -First 1
+          if (-not $found) {
+            choco install --no-progress openssl -y
+            $found = $dirs | Where-Object { Test-Path "$_\bin\libcrypto-3-x64.dll" } | Select-Object -First 1
+          }
+          if (-not $found) {
+            throw "OpenSSL 3.x installation with libcrypto-3-x64.dll not found"
+          }
+          Write-Host "Using OpenSSL from: $found"
+          $escaped = ($found + "\bin") -replace '\\', '\\'
+          "OPENSSL_BIN_ESCAPED=$escaped" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
           cache: true
           cache-key-prefix: install-qt-action-default
-          version: 6.*
+          version: '6.8.*'
+          arch: win64_msvc2022_64
           modules: qtserialport
       - name: Cached Bass
         id: cache-bass
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: C:\bass
           key: ${{ runner.os }}-bass_24
@@ -130,7 +148,7 @@ jobs:
           }
       - name: Cached NightLight
         id: cache-nightlight
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: C:\NightLight
           key: ${{ runner.os }}-nightlight_1.3_1909
@@ -145,7 +163,7 @@ jobs:
       - name: Set build vars
         shell: bash
         run: |
-          echo "OPENSSL_DIR = \"C:\\Program Files\\OpenSSL\\bin\"" > build-vars.prf
+          echo "OPENSSL_DIR = \"${{ env.OPENSSL_BIN_ESCAPED }}\"" > build-vars.prf
           echo "DEFINES += BASS_SOUND_SUPPORT" >> build-vars.prf
           echo "BASS_DIR = \"C:\\bass\"" >> build-vars.prf
           echo "BASSWASAPI_DIR = \"C:\\bass\\wasapi\"" >> build-vars.prf
@@ -155,11 +173,13 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          set QTDIR=%Qt6_Dir%
+          set QTDIR=%QT_ROOT_DIR%
           call scripts\win32\generate_sln.bat
           MSBuild.exe Lightpack.sln /p:Configuration=Release
       - name: Prepare Installer
         shell: bash
+        env:
+          PlatformToolset: v143
         run: |
           scripts/win32/prepare_installer.sh
       - name: Build Installer
@@ -176,18 +196,16 @@ jobs:
           echo "PKG_PATH=Software/$PKG_PATH" >> $GITHUB_ENV
           echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
       - name: Upload Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}
           path: ${{ env.PKG_PATH }}
 
   build-macos:
     name: macOS Build
-    runs-on: macOS-11
-    env:
-      QT_DEST: Qt
+    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Select Latest Xcode
         run: |
           set -xe
@@ -198,41 +216,18 @@ jobs:
           xcode-select -p
           xcodebuild -version
           xcodebuild -showsdks
-      - name: install Qt installer
-        run: |
-          set -xe
-          pip3 install -U pip
-          pip3 install aqtinstall
-          pip3 show aqtinstall
-          aqt list-qt mac desktop
-          QT_VERSION=$(aqt list-qt mac desktop --spec 6.2 --latest-version)
-          echo "QT_VERSION=$QT_VERSION" >> $GITHUB_ENV
-      - name: Cached Qt
-        id: cache-qt
-        uses: actions/cache@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
-          path: ${{ env.QT_DEST }}
-          key: ${{ runner.os }}-qt-${{ env.QT_VERSION }}
-      - name: install Qt
-        # The cache is relative to the workspace (not the default working dir)
-        # so the QT installation should be too.
-        working-directory: ./
-        run: |
-          set -xe
-          QTDIR=$PWD/$QT_DEST/$QT_VERSION/macos
-          echo "QTDIR=$QTDIR" >> $GITHUB_ENV
-          if [[ -d "$QTDIR" ]]
-          then
-            echo using cached version
-          else
-            echo installing fresh version
-            aqt install-qt mac desktop $QT_VERSION clang_64 --modules qtserialport --outputdir $QT_DEST
-          fi
+          cache: true
+          cache-key-prefix: install-qt-action-default
+          version: '6.8.*'
+          modules: qtserialport
       - name: Build
         run: |
-          export PATH=$QTDIR/bin:$PATH
+          export PATH="$QT_ROOT_DIR/bin:$PATH"
           qmake -r
-          make
+          make -j$(sysctl -n hw.ncpu)
           macdeployqt bin/Prismatik.app -dmg
       - name: Check Package
         run: |
@@ -243,7 +238,7 @@ jobs:
           echo "PKG_PATH=$PKG_PATH" >> $GITHUB_ENV
           echo "PKG_NAME=$PKG_NAME" >> $GITHUB_ENV
       - name: Upload Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PKG_NAME }}
           path: ${{ env.PKG_PATH }}
