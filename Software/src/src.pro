@@ -240,6 +240,9 @@ macx{
         HEADERS += MacOSSoundManager.h
     }
 
+    # AGL.framework was removed in Xcode 26 / macOS 26 SDK (QTBUG-137687)
+    QMAKE_LIBS_OPENGL = -framework OpenGL
+
     LIBS += \
             -framework Cocoa \
             -framework Carbon \

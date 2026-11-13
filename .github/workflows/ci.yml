@@ -226,8 +226,10 @@ jobs:
       - name: Build
         run: |
           export PATH="$QT_ROOT_DIR/bin:$PATH"
-          qmake -r
+          qmake -r CONFIG+=sdk_no_version_check
+          find . -name "Makefile*" -exec sed -i '' 's/-framework AGL//g' {} +
           make -j$(sysctl -n hw.ncpu)
+          sudo mdutil -a -i off || true
           macdeployqt bin/Prismatik.app -dmg
       - name: Check Package
         run: |
