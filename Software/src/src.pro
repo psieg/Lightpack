@@ -129,18 +129,21 @@ win32 {
 
     CONFIG(msvc) {
         versionAtLeast(QT_VERSION, 6.0.0) {
+            !contains(DEFINES, NO_OPENSSL): WINDEPLOYQT_OPENSSL = --force-openssl
             QMAKE_POST_LINK = cd $(TargetDir) $$escape_expand(\r\n)\
-                $$[QT_INSTALL_BINS]/windeployqt --no-opengl-sw --no-svg --no-translations --no-compiler-runtime \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)
+                $$[QT_INSTALL_BINS]/windeployqt --no-opengl-sw --no-svg --no-translations --no-compiler-runtime $${WINDEPLOYQT_OPENSSL} \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)
         } else {
             QMAKE_POST_LINK = cd $(TargetDir) $$escape_expand(\r\n)\
                 $$[QT_INSTALL_BINS]/windeployqt --no-angle --no-svg --no-translations --no-compiler-runtime \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)
         }
         QMAKE_POST_LINK += cd $(TargetDir) $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) LEQ 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
-            if $(PlatformToolsetVersion) GTR 140 copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp*.dll\" .\ $$escape_expand(\r\n)\
+            if $(PlatformToolsetVersion) GTR 140 IF EXIST \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\" copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcp*.dll\" .\ $$escape_expand(\r\n)\
+            if $(PlatformToolsetVersion) GTR 140 IF EXIST \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC145.CRT\" copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC145.CRT\\msvcp*.dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) LSS 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\msvcr$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) EQU 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
-            if $(PlatformToolsetVersion) GTR 140 copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)
+            if $(PlatformToolsetVersion) GTR 140 IF EXIST \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\" copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)\
+            if $(PlatformToolsetVersion) GTR 140 IF EXIST \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC145.CRT\" copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC145.CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)
         !contains(DEFINES, NO_OPENSSL) {
             # QT switched to OpenSSL 1.1 in 5.12.4 and to 3.x in 6, which has different binary names
             versionAtLeast(QT_VERSION, "6.0.0") {
@@ -236,6 +239,9 @@ macx{
         SOURCES += MacOSSoundManager.mm
         HEADERS += MacOSSoundManager.h
     }
+
+    # AGL.framework was removed in Xcode 26 / macOS 26 SDK (QTBUG-137687)
+    QMAKE_LIBS_OPENGL = -framework OpenGL
 
     LIBS += \
             -framework Cocoa \
