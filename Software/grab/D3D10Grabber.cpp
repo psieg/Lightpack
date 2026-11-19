@@ -652,8 +652,18 @@ void D3D10Grabber::init() {
 	connect(m_impl.data(), &D3D10GrabberImpl::frameGrabbed, this, &D3D10Grabber::grab);
 	_screensWithWidgets.clear();
 	GrabbedScreen grabbedScreen;
-	grabbedScreen.screenInfo.handle = QGuiApplication::primaryScreen();// unused?
-	grabbedScreen.screenInfo.rect = QGuiApplication::primaryScreen()->geometry();
+	HMONITOR hPrimaryMon = MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+	MONITORINFO mi;
+	ZeroMemory(&mi, sizeof(mi));
+	mi.cbSize = sizeof(mi);
+	if (hPrimaryMon && GetMonitorInfo(hPrimaryMon, &mi)) {
+		grabbedScreen.screenInfo.handle = hPrimaryMon;
+		grabbedScreen.screenInfo.rect = QRect(mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top);
+	} else if (QScreen *primary = QGuiApplication::primaryScreen()) {
+		const qreal dpr = primary->devicePixelRatio();
+		grabbedScreen.screenInfo.handle = primary;
+		grabbedScreen.screenInfo.rect = QRect(primary->geometry().topLeft(), QSize(qRound(primary->geometry().width() * dpr), qRound(primary->geometry().height() * dpr)));
+	}
 	_screensWithWidgets.append(grabbedScreen);
 
 	if (!WinUtils::IsUserAdmin()) {

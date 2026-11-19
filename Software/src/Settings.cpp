@@ -35,6 +35,16 @@
 #include <QDir>
 #include <QUuid>
 #include <QScreen>
+#include <QGuiApplication>
+#ifdef Q_OS_WIN
+#if !defined NOMINMAX
+#define NOMINMAX
+#endif
+#if !defined WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #include "debug.h"
 
 #define MAIN_CONFIG_FILE_VERSION	"4.0"
@@ -184,6 +194,7 @@ namespace Key
 // [General]
 static const QString LightpackMode = QStringLiteral("LightpackMode");
 static const QString IsBacklightEnabled = QStringLiteral("IsBacklightEnabled");
+static const QString CoordinateFormat = QStringLiteral("CoordinateFormat");
 // [Grab]
 namespace Grab
 {
@@ -247,6 +258,11 @@ static const QString CoefBlue = QStringLiteral("CoefBlue");
 
 namespace Value
 {
+
+namespace CoordinateFormat
+{
+static const QString Logical = QStringLiteral("Logical");
+}
 
 namespace LightpackMode
 {
@@ -409,6 +425,8 @@ bool Settings::Initialize( const QString & applicationDirPath, bool isDebugLevel
 
 	DEBUG_LOW_LEVEL << "Settings file:" << m_currentProfile->fileName();
 
+	migrateProfileCoordinates(m_currentProfile);
+
 	// Initialize m_devicesMap for mapping DeviceType on DeviceName
 	initDevicesMap();
 
@@ -476,6 +494,8 @@ void Settings::loadOrCreateProfile(const QString & profileName)
 	#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 	m_currentProfile->setIniCodec("UTF-8");
 	#endif
+
+	migrateProfileCoordinates(m_currentProfile);
 
 	locker.unlock();
 	initCurrentProfile(false);
@@ -2099,6 +2119,9 @@ void Settings::initCurrentProfile(bool isResetDefault)
 	// [General]
 	setNewOption(Profile::Key::LightpackMode,						Profile::LightpackModeDefault, isResetDefault);
 	setNewOption(Profile::Key::IsBacklightEnabled,					Profile::IsBacklightEnabledDefault, isResetDefault);
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	setNewOption(Profile::Key::CoordinateFormat,					Profile::Value::CoordinateFormat::Logical, isResetDefault);
+#endif
 	// [Grab]
 	setNewOption(Profile::Key::Grab::Grabber,						Profile::Grab::GrabberDefaultString, isResetDefault);
 	setNewOption(Profile::Key::Grab::IsAvgColorsEnabled,			Profile::Grab::IsAvgColorsEnabledDefault, isResetDefault);
@@ -2365,5 +2388,117 @@ void Settings::migrateSettings()
 
 		setValueMain(Main::Key::MainConfigVersion, QStringLiteral("4.0"));
 	}
+}
+
+void Settings::migrateProfileCoordinates(QSettings *profile)
+{
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	if (!profile || !QFile::exists(profile->fileName()))
+		return;
+
+	QString coordFormat = profile->value(Profile::Key::CoordinateFormat).toString();
+	if (coordFormat == Profile::Value::CoordinateFormat::Logical) {
+		return;
+	}
+
+#if defined(Q_OS_MACOS)
+	// On macOS, NSHighResolutionCapable=True in Info.plist meant Qt5 already stored LED coordinates in logical points.
+	profile->setValue(Profile::Key::CoordinateFormat, Profile::Value::CoordinateFormat::Logical);
+	profile->sync();
+	return;
+#else
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Migrating profile coordinates to Qt6 logical DIP:" << profile->fileName();
+
+	// Backup original profile file before modifying (only if writable and backup doesn't already exist)
+	QString backupFileName = profile->fileName() + QStringLiteral(".qt5bak");
+	if (profile->isWritable() && !QFile::exists(backupFileName)) {
+		QFile::copy(profile->fileName(), backupFileName);
+	}
+
+	for (int i = 0; i < MaximumNumberOfLeds::AbsoluteMaximum; ++i) {
+		QString posKey = QStringLiteral("%1%2/%3").arg(Profile::Key::Led::Prefix, QString::number(i + 1), Profile::Key::Led::Position);
+		QString sizeKey = QStringLiteral("%1%2/%3").arg(Profile::Key::Led::Prefix, QString::number(i + 1), Profile::Key::Led::Size);
+
+		if (!profile->contains(posKey) || !profile->contains(sizeKey))
+			continue;
+
+		QPoint physicalPos = profile->value(posKey).toPoint();
+		QSize physicalSize = profile->value(sizeKey).toSize();
+
+		if (physicalSize.isEmpty())
+			continue;
+
+		QPoint physicalCenter = physicalPos + QPoint(physicalSize.width() / 2, physicalSize.height() / 2);
+		QPoint logicalPos = physicalPos;
+		QSize logicalSize = physicalSize;
+
+#if defined(Q_OS_WIN)
+		HMONITOR hMon = MonitorFromPoint(POINT{ physicalCenter.x(), physicalCenter.y() }, MONITOR_DEFAULTTONEAREST);
+		MONITORINFOEX mi;
+		ZeroMemory(&mi, sizeof(mi));
+		mi.cbSize = sizeof(mi);
+		QScreen *targetScreen = nullptr;
+		QPoint screenPhysicalOrigin;
+		if (hMon && GetMonitorInfo(hMon, &mi)) {
+			QString devName = QString::fromWCharArray(mi.szDevice);
+			for (QScreen *s : QGuiApplication::screens()) {
+				if (s->name() == devName) {
+					targetScreen = s;
+					screenPhysicalOrigin = QPoint(mi.rcMonitor.left, mi.rcMonitor.top);
+					break;
+				}
+			}
+		}
+		if (!targetScreen) {
+			targetScreen = QGuiApplication::primaryScreen();
+			if (targetScreen)
+				screenPhysicalOrigin = targetScreen->geometry().topLeft();
+		}
+
+		if (targetScreen) {
+			qreal dpr = targetScreen->devicePixelRatio();
+			if (dpr > 0.0) {
+				QPoint physicalOffset = physicalPos - screenPhysicalOrigin;
+				logicalPos = targetScreen->geometry().topLeft() + QPoint(qRound(physicalOffset.x() / dpr), qRound(physicalOffset.y() / dpr));
+				logicalSize = QSize(qMax(1, qRound(physicalSize.width() / dpr)), qMax(1, qRound(physicalSize.height() / dpr)));
+			}
+		}
+#else
+		QScreen *targetScreen = nullptr;
+		for (QScreen *s : QGuiApplication::screens()) {
+			qreal dpr = s->devicePixelRatio();
+			QRect physicalScreenRect(
+				s->geometry().topLeft(),
+				QSize(qRound(s->geometry().width() * dpr), qRound(s->geometry().height() * dpr))
+			);
+			if (physicalScreenRect.contains(physicalCenter)) {
+				targetScreen = s;
+				break;
+			}
+		}
+		if (!targetScreen) {
+			targetScreen = QGuiApplication::primaryScreen();
+		}
+		if (targetScreen) {
+			qreal dpr = targetScreen->devicePixelRatio();
+			if (dpr > 0.0) {
+				QPoint screenPhysicalTopLeft = targetScreen->geometry().topLeft();
+				QPoint physicalOffset = physicalPos - screenPhysicalTopLeft;
+				logicalPos = targetScreen->geometry().topLeft() + QPoint(qRound(physicalOffset.x() / dpr), qRound(physicalOffset.y() / dpr));
+				logicalSize = QSize(qMax(1, qRound(physicalSize.width() / dpr)), qMax(1, qRound(physicalSize.height() / dpr)));
+			}
+		}
+#endif
+
+		profile->setValue(posKey, logicalPos);
+		profile->setValue(sizeKey, logicalSize);
+	}
+
+	profile->setValue(Profile::Key::CoordinateFormat, Profile::Value::CoordinateFormat::Logical);
+	profile->sync();
+#endif
+#else
+	Q_UNUSED(profile)
+#endif
 }
 } /*SettingsScope*/

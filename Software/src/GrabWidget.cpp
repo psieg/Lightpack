@@ -29,6 +29,15 @@
 #if (QT_VERSION < QT_VERSION_CHECK(5, 10, 0))
 #include <QDesktopWidget>
 #endif
+#ifdef Q_OS_WIN
+#if !defined NOMINMAX
+#define NOMINMAX
+#endif
+#if !defined WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #include <QTextItem>
 #include "GrabWidget.hpp"
 #include "ui_GrabWidget.h"
@@ -115,13 +124,45 @@ GrabWidget::~GrabWidget()
 
 QRect GrabWidget::deviceFrameGeometry() const
 {
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-	// Qt6 uses device independent coordinates but our captured image is in device coordinates.
-	// Move an scale the rect from its device-independent position to its pyhsical.
-	QPoint widgetTopLeft = frameGeometry().topLeft();
-	QPoint screenTopLeft = screen()->geometry().topLeft();
-	QPoint offset = widgetTopLeft - screenTopLeft;
-	QRect adjustedRect(offset * screen()->devicePixelRatio(), frameGeometry().size() * screen()->devicePixelRatio());
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)) && !defined(Q_OS_MACOS)
+	// Qt6 uses device independent coordinates while Windows/X11 capture buffers are in physical pixels
+	// (macOS grabbers operate in Quartz logical points and apply display scaling inside GrabberBase).
+	const QRect logicalFrame = frameGeometry();
+	const QScreen *s = QGuiApplication::screenAt(logicalFrame.center());
+	if (!s)
+		s = screen();
+	if (!s)
+		s = QGuiApplication::primaryScreen();
+	if (!s)
+		return logicalFrame;
+
+	QPoint screenPhysicalOrigin = s->geometry().topLeft();
+#if defined(Q_OS_WIN)
+	HMONITOR hMon = MonitorFromWindow(reinterpret_cast<HWND>(winId()), MONITOR_DEFAULTTONEAREST);
+	if (hMon) {
+		MONITORINFOEX mi;
+		ZeroMemory(&mi, sizeof(mi));
+		mi.cbSize = sizeof(mi);
+		if (GetMonitorInfo(hMon, &mi)) {
+			QString devName = QString::fromWCharArray(mi.szDevice);
+			for (const QScreen *candidate : QGuiApplication::screens()) {
+				if (candidate->name() == devName) {
+					s = candidate;
+					screenPhysicalOrigin = QPoint(mi.rcMonitor.left, mi.rcMonitor.top);
+					break;
+				}
+			}
+		}
+	}
+#endif
+
+	QPoint screenTopLeft = s->geometry().topLeft();
+	QPoint offset = logicalFrame.topLeft() - screenTopLeft;
+	qreal dpr = s->devicePixelRatio();
+	QPoint physicalOffset(qRound(offset.x() * dpr), qRound(offset.y() * dpr));
+	QSize physicalSize(qRound(logicalFrame.width() * dpr), qRound(logicalFrame.height() * dpr));
+
+	QRect adjustedRect(screenPhysicalOrigin + physicalOffset, physicalSize);
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO << "adjusted: " << Debug::toString(adjustedRect);
 	return adjustedRect;
 #else
@@ -158,8 +199,15 @@ void GrabWidget::settingsProfileChanged()
 		m_configWidget->setIsAreaEnabled(Settings::isLedEnabled(m_selfId));
 		m_configWidget->setCoefs(m_coefs.red, m_coefs.green, m_coefs.blue);
 
-		move(Settings::getLedPosition(m_selfId));
-		resize(Settings::getLedSize(m_selfId));
+		const QPoint ledPos = Settings::getLedPosition(m_selfId);
+		const QSize ledSize = Settings::getLedSize(m_selfId);
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+		const QRect targetRect(ledPos, ledSize);
+		if (QScreen *targetScreen = QGuiApplication::screenAt(targetRect.center()))
+			setScreen(targetScreen);
+#endif
+		move(ledPos);
+		resize(ledSize);
 
 		emit resizeOrMoveCompleted(m_selfId);
 	}

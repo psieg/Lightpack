@@ -61,7 +61,8 @@ HEADERS += \
     lightpackmathtest.hpp \
     AppVersionTest.hpp \
     ../src/UpdatesProcessor.hpp \
-    LightpackCommandLineParserTest.hpp
+    LightpackCommandLineParserTest.hpp \
+    SettingsMigrationTest.hpp
 
 SOURCES += \
     ../src/ApiServerSetColorTask.cpp \
@@ -77,7 +78,8 @@ SOURCES += \
     TestsMain.cpp \
     AppVersionTest.cpp \
     ../src/UpdatesProcessor.cpp \
-    LightpackCommandLineParserTest.cpp
+    LightpackCommandLineParserTest.cpp \
+    SettingsMigrationTest.cpp
 
 win32{
     HEADERS += \

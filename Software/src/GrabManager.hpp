@@ -26,6 +26,7 @@
 #pragma once
 
 #include <QtGui>
+#include <QHash>
 
 #include "GrabberBase.hpp"
 #include "enums.hpp"
@@ -90,10 +91,13 @@ private slots:
 	void resumeAfterResizeOrMoving();
 	void onFrameGrabAttempted(GrabResult result);
 	void updateScreenGeometry();
-	void onScreenCountChanged(QScreen* screen);
+	void onScreenAdded(QScreen* screen);
+	void onScreenRemoved(QScreen* screen);
+	void applyScreenGeometryChanges();
 
 private:
-	void scaleLedWidgets(const int screenIndexResized, const QRect& geometry);
+	void scheduleScreenGeometryUpdate();
+	void setupScreenConnections();
 	GrabberBase *queryGrabber(Grab::GrabberType grabber);
 	void initGrabbers();
 	GrabberBase *initGrabber(GrabberBase *grabber);
@@ -108,7 +112,8 @@ private:
 private:
 	QList<GrabberBase*> m_grabbers;
 	GrabberBase *m_grabber;
-	QList<QRect> m_lastScreenGeometry;
+	QHash<const QScreen*, QRect> m_lastScreenGeometry;
+	QList<QMetaObject::Connection> m_screenConnections;
 
 #ifdef D3D10_GRAB_SUPPORT
 	D3D10Grabber *m_d3d10Grabber;
@@ -145,5 +150,6 @@ private:
 	int m_grabCountLastInterval;
 
 	bool m_isGrabWidgetsVisible;
+	bool m_isScreenResizePending;
 	GrabberContext * m_grabberContext;
 };

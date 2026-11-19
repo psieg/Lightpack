@@ -284,6 +284,7 @@ private:
 
 
 public:
+	static void migrateProfileCoordinates(QSettings *profile);
 	static void setNewOption(const QString & name, const QVariant & value,
 							bool isForceSetOption = false, QSettings * settings = m_currentProfile);
 	static void setNewOptionMain(const QString & name, const QVariant & value,
