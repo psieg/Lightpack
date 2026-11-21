@@ -104,23 +104,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - name: Ensure OpenSSL 3
-        shell: powershell
-        run: |
-          $dirs = @("C:\Program Files\OpenSSL", "C:\Program Files\OpenSSL-Win64")
-          $found = $dirs | Where-Object {
-            (Test-Path "$_\bin\libcrypto-3-x64.dll") -and (Test-Path "$_\lib\VC\x64\MD\libcrypto.lib")
-          } | Select-Object -First 1
-          if (-not $found) {
-            choco install --no-progress openssl -y
-            $found = $dirs | Where-Object { Test-Path "$_\bin\libcrypto-3-x64.dll" } | Select-Object -First 1
-          }
-          if (-not $found) {
-            throw "OpenSSL 3.x installation with libcrypto-3-x64.dll not found"
-          }
-          Write-Host "Using OpenSSL from: $found"
-          $escaped = ($found + "\bin") -replace '\\', '\\'
-          "OPENSSL_BIN_ESCAPED=$escaped" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -163,8 +146,7 @@ jobs:
       - name: Set build vars
         shell: bash
         run: |
-          echo "OPENSSL_DIR = \"${{ env.OPENSSL_BIN_ESCAPED }}\"" > build-vars.prf
-          echo "DEFINES += BASS_SOUND_SUPPORT" >> build-vars.prf
+          echo "DEFINES += BASS_SOUND_SUPPORT" > build-vars.prf
           echo "BASS_DIR = \"C:\\bass\"" >> build-vars.prf
           echo "BASSWASAPI_DIR = \"C:\\bass\\wasapi\"" >> build-vars.prf
           echo "DEFINES += NIGHTLIGHT_SUPPORT" >> build-vars.prf

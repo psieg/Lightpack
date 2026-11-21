@@ -129,9 +129,8 @@ win32 {
 
     CONFIG(msvc) {
         versionAtLeast(QT_VERSION, 6.0.0) {
-            !contains(DEFINES, NO_OPENSSL): WINDEPLOYQT_OPENSSL = --force-openssl
             QMAKE_POST_LINK = cd $(TargetDir) $$escape_expand(\r\n)\
-                $$[QT_INSTALL_BINS]/windeployqt --no-opengl-sw --no-svg --no-translations --no-compiler-runtime $${WINDEPLOYQT_OPENSSL} \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)
+                $$[QT_INSTALL_BINS]/windeployqt --no-opengl-sw --no-svg --no-translations --no-compiler-runtime \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)
         } else {
             QMAKE_POST_LINK = cd $(TargetDir) $$escape_expand(\r\n)\
                 $$[QT_INSTALL_BINS]/windeployqt --no-angle --no-svg --no-translations --no-compiler-runtime \"$(TargetName)$(TargetExt)\" $$escape_expand(\r\n)
@@ -144,23 +143,6 @@ win32 {
             if $(PlatformToolsetVersion) EQU 140 copy /y \"$(VcInstallDir)redist\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime$(PlatformToolsetVersion).dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) GTR 140 IF EXIST \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\" copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC$(PlatformToolsetVersion).CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)\
             if $(PlatformToolsetVersion) GTR 140 IF EXIST \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC145.CRT\" copy /y \"$(VcInstallDir)Redist\\MSVC\\$(VCToolsRedistVersion)\\$(PlatformTarget)\\Microsoft.VC145.CRT\\vcruntime*.dll\" .\ $$escape_expand(\r\n)
-        !contains(DEFINES, NO_OPENSSL) {
-            # QT switched to OpenSSL 1.1 in 5.12.4 and to 3.x in 6, which has different binary names
-            versionAtLeast(QT_VERSION, "6.0.0") {
-                QMAKE_POST_LINK += copy /y \"$${OPENSSL_DIR}\\libcrypto-3-x64.dll\" .\ $$escape_expand(\r\n)\
-                    copy /y \"$${OPENSSL_DIR}\\libssl-3-x64.dll\" .\ $$escape_expand(\r\n)\
-                    IF EXIST  \"$${OPENSSL_DIR}\\msvcr*.dll\" copy /y \"$${OPENSSL_DIR}\\msvcr*.dll\" .\ $$escape_expand(\r\n)
-            } else:versionAtLeast(QT_VERSION, "5.12.4") {
-                QMAKE_POST_LINK += copy /y \"$${OPENSSL_DIR}\\libcrypto-1_1-x64.dll\" .\ $$escape_expand(\r\n)\
-                    copy /y \"$${OPENSSL_DIR}\\libssl-1_1-x64.dll\" .\ $$escape_expand(\r\n)\
-                    IF EXIST  \"$${OPENSSL_DIR}\\msvcr*.dll\" copy /y \"$${OPENSSL_DIR}\\msvcr*.dll\" .\ $$escape_expand(\r\n)
-            } else {
-                QMAKE_POST_LINK += copy /y \"$${OPENSSL_DIR}\\ssleay32.dll\" .\ $$escape_expand(\r\n)\
-                    copy /y \"$${OPENSSL_DIR}\\libeay32.dll\" .\ $$escape_expand(\r\n)\
-                    IF EXIST  \"$${OPENSSL_DIR}\\msvcr*.dll\" copy /y \"$${OPENSSL_DIR}\\msvcr*.dll\" .\ $$escape_expand(\r\n)
-            }
-        }
-
     } else {
         warning("unsupported setup - update src.pro to copy dependencies")
     }
