@@ -103,6 +103,7 @@ private slots:
 	void ledDeviceIoDeviceSuccess(bool isSuccess);
 
 private:
+	void closeLedDevice();
 	void initLedDevice();
 	AbstractLedDevice * createLedDevice(SupportedDevices::DeviceType deviceType);
 	void connectSignalSlotsLedDevice();

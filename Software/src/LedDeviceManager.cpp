@@ -110,10 +110,20 @@ void LedDeviceManager::recreateLedDevice()
 
 	disconnectSignalSlotsLedDevice();
 
-	if (m_ledDevice != NULL)
-		m_ledDevice->close();
+	closeLedDevice();
 
 	initLedDevice();
+}
+
+void LedDeviceManager::closeLedDevice()
+{
+	if (m_ledDevice == NULL)
+		return;
+	// Device lives on m_ledDeviceThread; closing it from here races its socket notifiers
+	if (m_ledDevice->thread() == QThread::currentThread() || !m_ledDevice->thread()->isRunning())
+		m_ledDevice->close();
+	else
+		QMetaObject::invokeMethod(m_ledDevice, "close", Qt::BlockingQueuedConnection);
 }
 
 void LedDeviceManager::switchOnLeds()
@@ -707,8 +717,21 @@ void LedDeviceManager::onSessionChange(SystemSession::Status status)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "status:" << status;
 
-	if (status == SystemSession::Status::Sleeping)
-		m_ledDevice->close();
-	else if (status == SystemSession::Status::Resuming)
-		recreateLedDevice();
+	if (status == SystemSession::Status::Sleeping) {
+		// Turn off here: the app's queued switch-off would arrive after the port is closed
+		if (!Settings::isKeepLightsOnAfterSuspend() && m_ledDevice != NULL) {
+			if (m_ledDevice->thread() == QThread::currentThread() || !m_ledDevice->thread()->isRunning())
+				m_ledDevice->switchOffLeds();
+			else
+				QMetaObject::invokeMethod(m_ledDevice, "switchOffLeds", Qt::BlockingQueuedConnection);
+		}
+		closeLedDevice();
+	}
+	else if (status == SystemSession::Status::Resuming) {
+		// USB serial devices re-enumerate a few seconds after wake
+		using namespace std::chrono_literals;
+		m_recreateTimer->stop();
+		m_recreateTimer->setInterval(3s);
+		m_recreateTimer->start();
+	}
 }

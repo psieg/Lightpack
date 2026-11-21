@@ -30,6 +30,7 @@
 #include "debug.h"
 #include "stdio.h"
 #include <QtSerialPort/QSerialPortInfo>
+#include <QThread>
 
 using namespace SettingsScope;
 
@@ -47,6 +48,16 @@ LedDeviceAdalight::LedDeviceAdalight(const QString &portName, const int baudRate
 	m_lastWillTimer = new QTimer(this);
 	m_lastWillTimer->setTimerType(Qt::PreciseTimer);
 	connect(m_lastWillTimer, &QTimer::timeout, this, qOverload<>(&LedDeviceAdalight::writeLastWill));
+	// A single black frame can be dropped by the firmware, so "off" is resent a few times
+	m_offRepeatTimer = new QTimer(this);
+	m_offRepeatTimer->setInterval(150);
+	connect(m_offRepeatTimer, &QTimer::timeout, this, [this]() {
+		if (m_offRepeatsLeft-- <= 0) {
+			m_offRepeatTimer->stop();
+			return;
+		}
+		writeBuffer(m_offBuffer);
+	});
 	// TODO: think about init m_savedColors in all ILedDevices
 
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "initialized";
@@ -68,18 +79,28 @@ void LedDeviceAdalight::close()
 	if (m_AdalightDevice == NULL)
 		return;
 
+	m_offRepeatTimer->stop();
+	// Flush pending "off" repeats synchronously so the LEDs go dark before sleep/exit
+	for (; m_offRepeatsLeft > 0 && m_AdalightDevice->isOpen(); m_offRepeatsLeft--) {
+		m_AdalightDevice->waitForBytesWritten(200);
+		QThread::msleep(40);
+		m_AdalightDevice->write(m_offBuffer);
+	}
 	if (m_lastWillTimer->isActive()) {
 		m_lastWillTimer->stop();
 		writeLastWill(true);
 	}
+	m_AdalightDevice->waitForBytesWritten(200);
 	m_AdalightDevice->close();
 
-	delete m_AdalightDevice;
+	m_AdalightDevice->deleteLater();
 	m_AdalightDevice = NULL;
 }
 
 void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
 {
+	m_offRepeatTimer->stop();
+
 	// Save colors for showing changes of the brightness
 	m_colorsSaved = colors;
 
@@ -156,6 +177,9 @@ void LedDeviceAdalight::switchOffLeds()
 	}
 
 	bool ok = writeBuffer(m_writeBuffer);
+	m_offBuffer = m_writeBuffer;
+	m_offRepeatsLeft = 4;
+	m_offRepeatTimer->start();
 	emit commandCompleted(ok);
 }
 
@@ -205,8 +229,17 @@ void LedDeviceAdalight::open()
 
 	if (m_AdalightDevice != NULL)
 		m_AdalightDevice->close();
-	else
+	else {
 		m_AdalightDevice = new QSerialPort();
+		// Port vanishes after sleep/replug: report failure so the manager reopens it
+		connect(m_AdalightDevice, &QSerialPort::errorOccurred, this, [this](QSerialPort::SerialPortError error) {
+			if (error == QSerialPort::ResourceError || error == QSerialPort::WriteError) {
+				qWarning() << Q_FUNC_INFO << "Serial port error" << (int)error << ", requesting reopen";
+				emit ioDeviceSuccess(false);
+			}
+		});
+	}
+	m_stuckTimer.invalidate();
 
 	m_AdalightDevice->setPortName(m_portName);// Settings::getAdalightSerialPortName());
 
@@ -276,6 +309,15 @@ bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
 		return false;
 
 	if (m_AdalightDevice->bytesToWrite() > 0) {
+		// Buffer never drains on a dead port: treat 2s without progress as a failure
+		if (!m_stuckTimer.isValid())
+			m_stuckTimer.start();
+		else if (m_stuckTimer.hasExpired(2000)) {
+			qWarning() << Q_FUNC_INFO << "Serial write stuck for 2s, requesting reopen";
+			m_stuckTimer.invalidate();
+			emit ioDeviceSuccess(false);
+			return false;
+		}
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << "Serial bytesToWrite:" << m_AdalightDevice->bytesToWrite() << ", skipping current frame";
 		// If no more writes will be done ("Send data only of colors changed")
 		// re-schedule last skipped frame in case it's important (for ex a black frame to turn off)
@@ -284,6 +326,7 @@ bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
 		return true;
 	}
 	m_lastWillTimer->stop();
+	m_stuckTimer.invalidate();
 
 	int bytesWritten = m_AdalightDevice->write(buff);
 
