@@ -33,6 +33,7 @@
 #include "Settings.hpp"
 #include "enums.hpp"
 #include "SettingsWindowMockup.hpp"
+#include "version.h"
 
 #include <stdlib.h>
 #include <iostream>
@@ -747,7 +748,7 @@ bool LightpackApiTest::checkVersion(QTcpSocket * socket)
 
 	QString result = readResult(socket);
 
-	QString versionTests = "Lightpack API v" VERSION_API_TESTS " (type \"help\" for more info)";
+	QString versionTests = "Lightpack API v" VERSION_API_TESTS " - Prismatik API v" API_VERSION " (type \"help\" for more info)";
 
 	return (m_sockReadLineOk && result.trimmed() == versionTests);
 }
