@@ -404,6 +404,7 @@ bool LightpackPluginInterface::SetProfile(const QString& sessionKey, const QStri
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
+	if (!Settings::isValidProfileName(profile)) return false;
 		QStringList profiles = Settings::findAllProfiles();
 		if (profiles.contains(profile))
 		{
@@ -470,6 +471,7 @@ bool LightpackPluginInterface::NewProfile(const QString& sessionKey, const QStri
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
+	if (!Settings::isValidProfileName(profile)) return false;
 
 		Settings::loadOrCreateProfile(profile);
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "OK:" << profile;
@@ -482,6 +484,7 @@ bool LightpackPluginInterface::DeleteProfile(const QString& sessionKey, const QS
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
+	if (!Settings::isValidProfileName(profile)) return false;
 	QStringList profiles = Settings::findAllProfiles();
 	if (profiles.contains(profile))
 	{

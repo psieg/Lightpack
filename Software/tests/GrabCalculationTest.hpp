@@ -40,5 +40,6 @@ public:
 	
 private Q_SLOTS:
 	void testCase1();
+	void testEmptyRectDoesNotCrash();
 };
 

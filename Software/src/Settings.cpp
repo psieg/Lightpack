@@ -345,8 +345,9 @@ bool Settings::Initialize( const QString & applicationDirPath, bool isDebugLevel
 	setNewOptionMain(Main::Key::Api::IsEnabled,			Main::Api::IsEnabledDefault);
 	setNewOptionMain(Main::Key::Api::ListenOnlyOnLoInterface, Main::Api::ListenOnlyOnLoInterfaceDefault);
 	setNewOptionMain(Main::Key::Api::Port,				Main::Api::PortDefault);
-	// Generation AuthKey as new UUID
-	setNewOptionMain(Main::Key::Api::AuthKey,			Main::Api::AuthKey);
+	// Auto-generate a UUID AuthKey for brand-new installations while keeping empty default for existing main.conf files
+	const QString defaultApiAuthKey = settingsWasPresent ? Main::Api::AuthKey : QUuid::createUuid().toString();
+	setNewOptionMain(Main::Key::Api::AuthKey,			defaultApiAuthKey);
 
 	// Serial device configuration
 	setNewOptionMain(Main::Key::Adalight::Port,				Main::Adalight::PortDefault);
@@ -416,6 +417,12 @@ bool Settings::Initialize( const QString & applicationDirPath, bool isDebugLevel
 	}
 
 	QString profileLast = getLastProfileName();
+	if (!isValidProfileName(profileLast))
+	{
+		qWarning() << Q_FUNC_INFO << "ProfileLast contains an invalid profile name, resetting to default";
+		profileLast = Main::ProfileNameDefault;
+		setValueMain(Main::Key::ProfileLast, profileLast);
+	}
 
 	// Load last profile
 	m_currentProfile = new QSettings(QStringLiteral("%1%2.ini").arg(getProfilesPath(), profileLast), QSettings::IniFormat);
@@ -466,9 +473,82 @@ QStringList Settings::findAllProfiles()
 	return settingsFiles;
 }
 
+bool Settings::isValidProfileName(const QString & profileName)
+{
+	if (profileName.isEmpty() || profileName.length() > 128)
+		return false;
+
+	if (profileName != profileName.trimmed() || profileName.endsWith(QLatin1Char('.')))
+		return false;
+
+	if (profileName == QStringLiteral(".") || profileName == QStringLiteral(".."))
+		return false;
+
+	for (const QChar ch : profileName)
+	{
+		const ushort u = ch.unicode();
+		if (u < 0x20 || u == 0x7f)
+			return false;
+		switch (u)
+		{
+		case '/':
+		case '\\':
+		case ':':
+		case '*':
+		case '?':
+		case '"':
+		case '<':
+		case '>':
+		case '|':
+		case ';':
+			return false;
+		default:
+			break;
+		}
+	}
+
+	const int dotIdx = profileName.indexOf(QLatin1Char('.'));
+	const QString stem = (dotIdx >= 0 ? profileName.left(dotIdx) : profileName).toUpper();
+	if (stem == QStringLiteral("CON") || stem == QStringLiteral("PRN") ||
+		stem == QStringLiteral("AUX") || stem == QStringLiteral("NUL"))
+	{
+		return false;
+	}
+	if ((stem.startsWith(QStringLiteral("COM")) || stem.startsWith(QStringLiteral("LPT"))) &&
+		stem.length() == 4 && stem[3].isDigit() && stem[3] != QLatin1Char('0'))
+	{
+		return false;
+	}
+
+	if (!m_configDirPath.isEmpty())
+	{
+		const QString profilesRoot = QDir::cleanPath(QDir(getProfilesPath()).absolutePath());
+		const QString candidateFile = QDir::cleanPath(QFileInfo(QStringLiteral("%1%2.ini").arg(getProfilesPath(), profileName)).absoluteFilePath());
+		const QString candidateParent = QDir::cleanPath(QFileInfo(candidateFile).absolutePath());
+		if (candidateParent.compare(profilesRoot,
+#ifdef Q_OS_WIN
+			Qt::CaseInsensitive
+#else
+			Qt::CaseSensitive
+#endif
+			) != 0)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void Settings::loadOrCreateProfile(const QString & profileName)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << profileName;
+
+	if (!isValidProfileName(profileName))
+	{
+		qWarning() << Q_FUNC_INFO << "Rejected invalid profile name:" << profileName;
+		return;
+	}
 
 	QMutexLocker locker(&m_mutex);
 	QString currentProfileFileName;
@@ -510,6 +590,12 @@ void Settings::loadOrCreateProfile(const QString & profileName)
 void Settings::renameCurrentProfile(const QString & profileName)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "from" << getCurrentProfileName() << "to" << profileName;
+
+	if (!isValidProfileName(profileName))
+	{
+		qWarning() << Q_FUNC_INFO << "Rejected invalid profile name:" << profileName;
+		return;
+	}
 
 	QMutexLocker locker(&m_mutex);
 

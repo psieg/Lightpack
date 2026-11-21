@@ -216,9 +216,11 @@ ApiServer::~ApiServer() {
 
 void ApiServer::setInterface(LightpackPluginInterface *lightpackInterface)
 {
+	lightpack = lightpackInterface;
+	if (!lightpack)
+		return;
 	QString test = lightpack->Version();
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << test;
-	lightpack = lightpackInterface;
 	connect(m_apiSetColorTask, &ApiServerSetColorTask::taskParseSetColorDone, lightpack, &LightpackPluginInterface::updateLedsColors, Qt::QueuedConnection);
 	connect(m_apiSetColorTask, &ApiServerSetColorTask::taskParseSetColorDone, lightpack, &LightpackPluginInterface::updateColorsCache, Qt::QueuedConnection);
 
@@ -263,13 +265,28 @@ void ApiServer::updateApiKey(const QString &key)
 
 void ApiServer::incomingConnection(qintptr socketDescriptor)
 {
+	if (m_clients.size() >= MaxClients)
+	{
+		qWarning() << Q_FUNC_INFO << "Max API clients reached, rejecting connection";
+		QTcpSocket rejected;
+		if (rejected.setSocketDescriptor(socketDescriptor))
+			rejected.abort();
+		return;
+	}
+
 	QTcpSocket *client = new QTcpSocket(this);
-	client->setSocketDescriptor(socketDescriptor);
+	if (!client->setSocketDescriptor(socketDescriptor))
+	{
+		delete client;
+		return;
+	}
+	client->setReadBufferSize(MaxReadBufferSize);
 
 	ClientInfo cs;
 	cs.isAuthorized = !m_isAuthEnabled;
+	cs.unknownCmdCount = 0;
 	// set default sessionkey (disable lock priority)
-	cs.sessionKey = QStringLiteral("API%1%2").arg(lightpack->GetSessionKey(QStringLiteral("API")), QString::number(m_clients.count()));
+	cs.sessionKey = QStringLiteral("API%1%2").arg(lightpack ? lightpack->GetSessionKey(QStringLiteral("API")) : QStringLiteral("Lock"), QString::number(m_clients.count()));
 
 	m_clients.insert(client, cs);
 
@@ -281,14 +298,53 @@ void ApiServer::incomingConnection(qintptr socketDescriptor)
 	connect(client, &QTcpSocket::disconnected, this, &ApiServer::clientDisconnected);
 }
 
+void ApiServer::abortClient(QTcpSocket *client)
+{
+	if (!client || !m_clients.contains(client))
+		return;
+
+	QString sessionKey = m_clients[client].sessionKey;
+	if (lightpack && lightpack->CheckLock(sessionKey) == 1)
+		lightpack->UnLock(sessionKey);
+
+	m_clients.remove(client);
+
+	disconnect(client, &QTcpSocket::readyRead, this, &ApiServer::clientProcessCommands);
+	disconnect(client, &QTcpSocket::disconnected, this, &ApiServer::clientDisconnected);
+
+	client->abort();
+	client->deleteLater();
+}
+
+bool ApiServer::isCrossProtocolLine(const QByteArray &line)
+{
+	static const char * const prefixes[] = {
+		"GET ", "POST ", "PUT ", "DELETE ", "HEAD ", "OPTIONS ", "PATCH ", "CONNECT ", "TRACE ", "PRI * ",
+		"HTTP/", "Host:", "Origin:", "Referer:", "User-Agent:", "Accept:", "Accept-",
+		"Content-Type:", "Content-Length:", "Connection:", "Sec-", "Cookie:", "Upgrade:"
+	};
+
+	for (const char *prefix : prefixes)
+	{
+		const qsizetype len = static_cast<qsizetype>(qstrlen(prefix));
+		if (line.size() >= len && qstrnicmp(line.constData(), prefix, len) == 0)
+			return true;
+	}
+	if (line.contains(" HTTP/1.") || line.contains(" HTTP/2"))
+		return true;
+	return false;
+}
+
 void ApiServer::clientDisconnected()
 {
 	QTcpSocket *client = qobject_cast<QTcpSocket*>(sender());
+	if (!client || !m_clients.contains(client))
+		return;
 
 	DEBUG_LOW_LEVEL << "Client disconnected:" << client->peerAddress().toString();
 
 	QString sessionKey = m_clients[client].sessionKey;
-	if (lightpack->CheckLock(sessionKey)==1)
+	if (lightpack && lightpack->CheckLock(sessionKey)==1)
 		lightpack->UnLock(sessionKey);
 
 	m_clients.remove(client);
@@ -304,23 +360,41 @@ void ApiServer::clientProcessCommands()
 	API_DEBUG_OUT << Q_FUNC_INFO << "ApiServer thread id:" << this->thread()->currentThreadId();
 
 	QTcpSocket *client = qobject_cast<QTcpSocket*>(sender());
+	if (!client || !m_clients.contains(client) || !lightpack)
+		return;
 
 	while (m_clients.contains(client) && client->canReadLine())
 	{
-		QString sessionKey =	m_clients[client].sessionKey;
+		QByteArray rawLine = client->readLine(MaxCommandLength + 2);
+		if (rawLine.size() > MaxCommandLength)
+		{
+			qWarning() << Q_FUNC_INFO << "Oversized API command line, disconnecting client";
+			abortClient(client);
+			return;
+		}
+
+		QString sessionKey = m_clients[client].sessionKey;
 		int m_lockedClient = lightpack->CheckLock(sessionKey);
 
-		QByteArray cmdBuffer = client->readLine().trimmed();
+		QByteArray cmdBuffer = rawLine.trimmed();
 		API_DEBUG_OUT << cmdBuffer;
 
 		QString result = CmdUnknown;
 
 		if (cmdBuffer.isEmpty())
 		{
-			// Ignore empty lines
+			// Ignore empty lines and continue draining buffered commands
+			continue;
+		}
+
+		if (isCrossProtocolLine(cmdBuffer))
+		{
+			qWarning() << Q_FUNC_INFO << "Rejected cross-protocol HTTP/browser request on API socket";
+			abortClient(client);
 			return;
 		}
-		else if (cmdBuffer == CmdExit)
+
+		if (cmdBuffer == CmdExit)
 		{
 			writeData(client, QStringLiteral("Goodbye!\r\n"));
 			if (m_clients.contains(client))
@@ -329,17 +403,20 @@ void ApiServer::clientProcessCommands()
 		}
 		else if (cmdBuffer == CmdHelp)
 		{
+			m_clients[client].unknownCmdCount = 0;
 			writeData(client, m_helpMessage);
-			return;
+			continue;
 		}
 		else if (cmdBuffer == CmdHelpShort)
 		{
+			m_clients[client].unknownCmdCount = 0;
 			writeData(client, m_shortHelpMessage);
-			return;
+			continue;
 		}
 		else if (cmdBuffer.startsWith(CmdApiKey))
 		{
 			API_DEBUG_OUT << CmdApiKey;
+			m_clients[client].unknownCmdCount = 0;
 
 			if (m_isAuthEnabled)
 			{
@@ -368,13 +445,13 @@ void ApiServer::clientProcessCommands()
 			}
 
 			writeData(client, result);
-			return;
+			continue;
 		}
 
 		if (m_isAuthEnabled && m_clients[client].isAuthorized == false)
 		{
 			writeData(client, CmdApiCheck_AuthRequired);
-			return;
+			continue;
 		}
 
 		// We are working only with authorized clients!
@@ -1231,7 +1308,31 @@ void ApiServer::clientProcessCommands()
 			qWarning() << Q_FUNC_INFO << CmdUnknown << cmdBuffer;
 		}
 
+		if (m_clients.contains(client))
+		{
+			if (result == QLatin1String(CmdUnknown))
+			{
+				if (++m_clients[client].unknownCmdCount >= MaxConsecutiveUnknownCommands)
+				{
+					writeData(client, result);
+					qWarning() << Q_FUNC_INFO << "Too many consecutive unknown commands, disconnecting client";
+					abortClient(client);
+					return;
+				}
+			}
+			else
+			{
+				m_clients[client].unknownCmdCount = 0;
+			}
+		}
+
 		writeData(client, result);
+	}
+
+	if (m_clients.contains(client) && !client->canReadLine() && client->bytesAvailable() > MaxCommandLength)
+	{
+		qWarning() << Q_FUNC_INFO << "Oversized unterminated API command line, disconnecting client";
+		abortClient(client);
 	}
 }
 

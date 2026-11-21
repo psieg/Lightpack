@@ -187,12 +187,21 @@ void QtLocalPeer::receiveConnection()
 	if (!socket)
 		return;
 
-	while (socket->bytesAvailable() < (int)sizeof(quint32))
-		socket->waitForReadyRead();
+	while (socket->bytesAvailable() < (int)sizeof(quint32)) {
+		if (!socket->waitForReadyRead(2000)) {
+			delete socket;
+			return;
+		}
+	}
 	QDataStream ds(socket);
 	QByteArray uMsg;
-	quint32 remaining;
+	quint32 remaining = 0;
 	ds >> remaining;
+	if (remaining > 4096) {
+		qWarning("QtLocalPeer: Rejecting oversized IPC message (%u bytes)", remaining);
+		delete socket;
+		return;
+	}
 	uMsg.resize(remaining);
 	int got = 0;
 	char* uMsgBuf = uMsg.data();
