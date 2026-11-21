@@ -29,6 +29,7 @@
 #include "AbstractLedDevice.hpp"
 #include "colorspace_types.h"
 #include <QtSerialPort/QSerialPort>
+#include <QElapsedTimer>
 
 class LedDeviceArdulight : public AbstractLedDevice
 {
@@ -54,8 +55,12 @@ public slots:
 	void writeLastWill();
 	void writeLastWill(const bool force);
 
+private slots:
+	void onSerialError(QSerialPort::SerialPortError error);
+
 private:
 	bool writeBuffer(const QByteArray & buff);
+	bool isWriteStalled();
 	void resizeColorsBuffer(int buffSize);
 
 private:
@@ -67,4 +72,6 @@ private:
 	QString m_portName;
 	int m_baudRate;
 	QTimer* m_lastWillTimer{ nullptr };
+	// Measures how long the serial port has been unable to drain its write buffer
+	QElapsedTimer m_writeStallTimer;
 };

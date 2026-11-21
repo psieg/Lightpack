@@ -110,8 +110,10 @@ void LedDeviceManager::recreateLedDevice()
 
 	disconnectSignalSlotsLedDevice();
 
+	// The device (and its QSerialPort / sockets) lives in m_ledDeviceThread: close it
+	// there. Queued before the open() emitted by initLedDevice(), so order is kept.
 	if (m_ledDevice != NULL)
-		m_ledDevice->close();
+		QMetaObject::invokeMethod(m_ledDevice, &AbstractLedDevice::close, Qt::QueuedConnection);
 
 	initLedDevice();
 }
@@ -708,7 +710,7 @@ void LedDeviceManager::onSessionChange(SystemSession::Status status)
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "status:" << status;
 
 	if (status == SystemSession::Status::Sleeping)
-		m_ledDevice->close();
+		QMetaObject::invokeMethod(m_ledDevice, &AbstractLedDevice::close, Qt::QueuedConnection);
 	else if (status == SystemSession::Status::Resuming)
 		recreateLedDevice();
 }

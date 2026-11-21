@@ -72,6 +72,10 @@ void LedDeviceAdalight::close()
 		m_lastWillTimer->stop();
 		writeLastWill(true);
 	}
+	// the forced write above may re-arm the timer if the port is busy;
+	// it must not fire once the port has been deleted
+	m_lastWillTimer->stop();
+	m_writeStallTimer.invalidate();
 	m_AdalightDevice->close();
 
 	delete m_AdalightDevice;
@@ -205,8 +209,12 @@ void LedDeviceAdalight::open()
 
 	if (m_AdalightDevice != NULL)
 		m_AdalightDevice->close();
-	else
+	else {
 		m_AdalightDevice = new QSerialPort();
+		connect(m_AdalightDevice, &QSerialPort::errorOccurred, this, &LedDeviceAdalight::onSerialError);
+	}
+
+	m_writeStallTimer.invalidate();
 
 	m_AdalightDevice->setPortName(m_portName);// Settings::getAdalightSerialPortName());
 
@@ -262,9 +270,18 @@ void LedDeviceAdalight::writeLastWill()
 
 void LedDeviceAdalight::writeLastWill(const bool force)
 {
+	if (m_AdalightDevice == NULL || m_AdalightDevice->isOpen() == false) {
+		m_lastWillTimer->stop();
+		return;
+	}
+
 	if (force || m_AdalightDevice->bytesToWrite() == 0) {
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << "Writing last will frame";
 		setColors(m_colorsSaved);
+	} else {
+		// nothing new is being sent (static image / "send only on change"),
+		// so check here too whether the port is stuck
+		isWriteStalled();
 	}
 }
 
@@ -277,6 +294,8 @@ bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
 
 	if (m_AdalightDevice->bytesToWrite() > 0) {
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << "Serial bytesToWrite:" << m_AdalightDevice->bytesToWrite() << ", skipping current frame";
+		if (isWriteStalled())
+			return false;
 		// If no more writes will be done ("Send data only of colors changed")
 		// re-schedule last skipped frame in case it's important (for ex a black frame to turn off)
 		using namespace std::chrono_literals;
@@ -284,6 +303,7 @@ bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
 		return true;
 	}
 	m_lastWillTimer->stop();
+	m_writeStallTimer.invalidate();
 
 	int bytesWritten = m_AdalightDevice->write(buff);
 
@@ -296,6 +316,42 @@ bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
 
 	emit ioDeviceSuccess(true);
 	return true;
+}
+
+bool LedDeviceAdalight::isWriteStalled()
+{
+	// If the OS never completes a pending write (USB-serial driver hiccup, device
+	// briefly re-enumerated, etc.) bytesToWrite() stays > 0 forever and every new
+	// frame gets skipped while the port still looks open: the LEDs freeze with no
+	// error reported. Treat a buffer that doesn't drain in time as an I/O failure so
+	// LedDeviceManager closes and reopens the port.
+	static const qint64 WriteStallTimeoutMs = 1500;
+
+	if (!m_writeStallTimer.isValid()) {
+		m_writeStallTimer.start();
+		return false;
+	}
+	if (!m_writeStallTimer.hasExpired(WriteStallTimeoutMs))
+		return false;
+
+	qWarning() << Q_FUNC_INFO << "Serial write stalled for" << m_writeStallTimer.elapsed() << "ms with"
+			<< m_AdalightDevice->bytesToWrite() << "bytes pending, reopening" << m_AdalightDevice->portName();
+	m_writeStallTimer.invalidate();
+	m_lastWillTimer->stop();
+	emit ioDeviceSuccess(false);
+	return true;
+}
+
+void LedDeviceAdalight::onSerialError(QSerialPort::SerialPortError error)
+{
+	if (error != QSerialPort::WriteError && error != QSerialPort::ResourceError && error != QSerialPort::UnknownError)
+		return;
+
+	qWarning() << Q_FUNC_INFO << "Serial error" << (int)error << (m_AdalightDevice ? m_AdalightDevice->errorString() : QString())
+			<< ", reopening port";
+	m_lastWillTimer->stop();
+	m_writeStallTimer.invalidate();
+	emit ioDeviceSuccess(false);
 }
 
 void LedDeviceAdalight::resizeColorsBuffer(int buffSize)
