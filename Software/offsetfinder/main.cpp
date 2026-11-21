@@ -85,17 +85,22 @@ int CALLBACK WinMain(
 	HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
 	UINT loadLibraryWAddr = (UINT) GetProcAddress(kernel32, "LoadLibraryW");
 
-	HANDLE mapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, HOOKSGRABBER_SHARED_MEM_NAME);
+	HANDLE mapping = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, HOOKSGRABBER_CONFIG_MEM_NAME);
 	if (NULL == mapping) {
+		CloseWindow(hWnd);
+		DestroyWindow(hWnd);
 		return 4;
 	}
 
-	char *memory = (char *)MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, HOOKSGRABBER_SHARED_MEM_SIZE);
+	char *memory = (char *)MapViewOfFile(mapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, HOOKSGRABBER_CONFIG_MEM_SIZE);
 	if (memory == NULL) {
+		CloseHandle(mapping);
+		CloseWindow(hWnd);
+		DestroyWindow(hWnd);
 		return 5;
 	}
 
-	HOOKSGRABBER_SHARED_MEM_DESC *desc = (HOOKSGRABBER_SHARED_MEM_DESC*)memory;
+	HOOKSGRABBER_CONFIG_DESC *desc = (HOOKSGRABBER_CONFIG_DESC*)memory;
 
 	desc->d3d9PresentFuncOffset32 = d3d9PresentOffset;
 	desc->d3d9SCPresentFuncOffset32 = d3d9SCPresentOffset;

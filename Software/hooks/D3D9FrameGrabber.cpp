@@ -110,40 +110,55 @@ void D3D9FrameGrabber::freeDeviceData() {
 
 void ** D3D9FrameGrabber::calcD3d9PresentPointer() {
 #ifdef HOOKS_SYSWOW64
-	UINT offset = m_ipcContext->m_pMemDesc->d3d9PresentFuncOffset32;
+	UINT offset = m_ipcContext->m_pConfigDesc->d3d9PresentFuncOffset32;
 #else
-	UINT offset = m_ipcContext->m_pMemDesc->d3d9PresentFuncOffset;
+	UINT offset = m_ipcContext->m_pConfigDesc->d3d9PresentFuncOffset;
 #endif
-	void * hD3d9 = reinterpret_cast<void *>(GetModuleHandleA("d3d9.dll"));
-	m_logger->reportLogDebug(L"d3d9PresentFuncOffset = 0x%x, hDxgi = 0x%x", offset, hD3d9);
+	HMODULE hD3d9Mod = GetModuleHandleA("d3d9.dll");
+	if (!IsModuleOffsetValid(hD3d9Mod, offset, 5)) {
+		m_logger->reportLogError(L"Invalid d3d9PresentFuncOffset = 0x%x", offset);
+		return NULL;
+	}
+	void * hD3d9 = reinterpret_cast<void *>(hD3d9Mod);
+	m_logger->reportLogDebug(L"d3d9PresentFuncOffset = 0x%x, hD3d9 = 0x%p", offset, hD3d9);
 	void ** result = static_cast<void ** >(incPtr(hD3d9, offset));
-	m_logger->reportLogDebug(L"d3d9.dll = 0x%x, device::present location = 0x%x", hD3d9, result);
+	m_logger->reportLogDebug(L"d3d9.dll = 0x%p, device::present location = 0x%p", hD3d9, result);
 	return result;
 }
 
 void ** D3D9FrameGrabber::calcD3d9SCPresentPointer() {
 #ifdef HOOKS_SYSWOW64
-	UINT offset = m_ipcContext->m_pMemDesc->d3d9SCPresentFuncOffset32;
+	UINT offset = m_ipcContext->m_pConfigDesc->d3d9SCPresentFuncOffset32;
 #else
-	UINT offset = m_ipcContext->m_pMemDesc->d3d9SCPresentFuncOffset;
+	UINT offset = m_ipcContext->m_pConfigDesc->d3d9SCPresentFuncOffset;
 #endif
-	void * hD3d9 = reinterpret_cast<void *>(GetModuleHandleA("d3d9.dll"));
-	m_logger->reportLogDebug(L"d3d9SCPresentFuncOffset = 0x%x, hDxgi = 0x%x", offset, hD3d9);
+	HMODULE hD3d9Mod = GetModuleHandleA("d3d9.dll");
+	if (!IsModuleOffsetValid(hD3d9Mod, offset, 5)) {
+		m_logger->reportLogError(L"Invalid d3d9SCPresentFuncOffset = 0x%x", offset);
+		return NULL;
+	}
+	void * hD3d9 = reinterpret_cast<void *>(hD3d9Mod);
+	m_logger->reportLogDebug(L"d3d9SCPresentFuncOffset = 0x%x, hD3d9 = 0x%p", offset, hD3d9);
 	void ** result = static_cast<void ** >(incPtr(hD3d9, offset));
-	m_logger->reportLogDebug(L"d3d9.dll = 0x%x, swapchain::present location = 0x%x", hD3d9, result);
+	m_logger->reportLogDebug(L"d3d9.dll = 0x%p, swapchain::present location = 0x%p", hD3d9, result);
 	return result;
 }
 
 void ** D3D9FrameGrabber::calcD3d9ResetPointer() {
 #ifdef HOOKS_SYSWOW64
-	UINT offset = m_ipcContext->m_pMemDesc->d3d9ResetFuncOffset32;
+	UINT offset = m_ipcContext->m_pConfigDesc->d3d9ResetFuncOffset32;
 #else
-	UINT offset = m_ipcContext->m_pMemDesc->d3d9ResetFuncOffset;
+	UINT offset = m_ipcContext->m_pConfigDesc->d3d9ResetFuncOffset;
 #endif
-	void * hD3d9 = reinterpret_cast<void *>(GetModuleHandleA("d3d9.dll"));
-	m_logger->reportLogDebug(L"d3d9PresentFuncOffset = 0x%x, hDxgi = 0x%x", offset, hD3d9);
+	HMODULE hD3d9Mod = GetModuleHandleA("d3d9.dll");
+	if (!IsModuleOffsetValid(hD3d9Mod, offset, 5)) {
+		m_logger->reportLogError(L"Invalid d3d9ResetFuncOffset = 0x%x", offset);
+		return NULL;
+	}
+	void * hD3d9 = reinterpret_cast<void *>(hD3d9Mod);
+	m_logger->reportLogDebug(L"d3d9ResetFuncOffset = 0x%x, hD3d9 = 0x%p", offset, hD3d9);
 	void ** result = static_cast<void ** >(incPtr(hD3d9, offset));
-	m_logger->reportLogDebug(L"d3d9.dll = 0x%x, device::reset location = 0x%x", hD3d9, result);
+	m_logger->reportLogDebug(L"d3d9.dll = 0x%p, device::reset location = 0x%p", hD3d9, result);
 	return result;
 }
 
@@ -176,24 +191,30 @@ HRESULT WINAPI D3D9Present(IDirect3DDevice9 *pDev, CONST RECT* pSourceRect,CONST
 				goto endMap;
 			}
 
+			if (lockedSrcRect.Pitch <= 0 || !hooksGrabberValidateFrameSize(width, height, static_cast<UINT>(lockedSrcRect.Pitch))) {
+				logger->reportLogWarning(L"d3d9 frame exceeds shared memory bounds (%ux%u, pitch=%d)", width, height, lockedSrcRect.Pitch);
+				goto endMap;
+			}
+
 			DWORD errorcode;
 			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+				const size_t rowBytes = static_cast<size_t>(width) * 4;
 				ipcContext->m_pMemDesc->width = width;
 				ipcContext->m_pMemDesc->height = height;
-				ipcContext->m_pMemDesc->rowPitch = lockedSrcRect.Pitch;
+				ipcContext->m_pMemDesc->rowPitch = static_cast<UINT>(rowBytes);
 				ipcContext->m_pMemDesc->frameId++;
 				ipcContext->m_pMemDesc->format = getCompatibleBufferFormat(d3d9FrameGrabber->m_surfFormat);
 
-				PVOID pMemDataMap = incPtr(ipcContext->m_pMemMap, sizeof(*ipcContext->m_pMemDesc));
-				if (static_cast<UINT>(lockedSrcRect.Pitch) == width * 4) {
-					memcpy(pMemDataMap, lockedSrcRect.pBits, width * height * 4);
+				BYTE *pMemDataMap = reinterpret_cast<BYTE *>(ipcContext->m_pMemMap) + sizeof(*ipcContext->m_pMemDesc);
+				const BYTE *pSrc = reinterpret_cast<const BYTE *>(lockedSrcRect.pBits);
+				if (static_cast<size_t>(lockedSrcRect.Pitch) == rowBytes) {
+					memcpy(pMemDataMap, pSrc, rowBytes * static_cast<size_t>(height));
 				} else {
-					UINT i = 0, cleanOffset = 0, pitchOffset = 0;
-					while (i < height) {
-						memcpy(incPtr(pMemDataMap, cleanOffset), incPtr(lockedSrcRect.pBits, pitchOffset), width * 4);
-						cleanOffset += width * 4;
-						pitchOffset += lockedSrcRect.Pitch;
-						i++;
+					size_t cleanOffset = 0, pitchOffset = 0;
+					for (UINT i = 0; i < height; ++i) {
+						memcpy(pMemDataMap + cleanOffset, pSrc + pitchOffset, rowBytes);
+						cleanOffset += rowBytes;
+						pitchOffset += static_cast<size_t>(lockedSrcRect.Pitch);
 					}
 				}
 				ReleaseMutex(ipcContext->m_hMutex);
@@ -209,8 +230,8 @@ HRESULT WINAPI D3D9Present(IDirect3DDevice9 *pDev, CONST RECT* pSourceRect,CONST
 	stillWaiting:
 
 		// only capture a new frame if the old one was processed to shared memory and the delay has passed since the last grab
-		if (!d3d9FrameGrabber->m_mapPending && (GetTickCount() - d3d9FrameGrabber->m_lastGrab >= d3d9FrameGrabber->m_ipcContext->m_pMemDesc->grabDelay)) {
-			if (!ipcContext->m_pMemDesc->grabbingStarted) {
+		if (!d3d9FrameGrabber->m_mapPending && (GetTickCount() - d3d9FrameGrabber->m_lastGrab >= d3d9FrameGrabber->m_ipcContext->m_pConfigDesc->grabDelay)) {
+			if (!ipcContext->m_pConfigDesc->grabbingStarted) {
 				ipcContext->m_pMemDesc->frameId = HOOKSGRABBER_BLANK_FRAME_ID;
 				SetEvent(ipcContext->m_hFrameGrabbedEvent);
 			} else {
@@ -361,23 +382,29 @@ HRESULT WINAPI D3D9SCPresent(IDirect3DSwapChain9 *pSc, CONST RECT* pSourceRect,C
 				goto endMap;
 			}
 
+			if (lockedSrcRect.Pitch <= 0 || !hooksGrabberValidateFrameSize(width, height, static_cast<UINT>(lockedSrcRect.Pitch))) {
+				logger->reportLogWarning(L"d3d9sc frame exceeds shared memory bounds (%ux%u, pitch=%d)", width, height, lockedSrcRect.Pitch);
+				goto endMap;
+			}
+
 			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+				const size_t rowBytes = static_cast<size_t>(width) * 4;
 				ipcContext->m_pMemDesc->width = width;
 				ipcContext->m_pMemDesc->height = height;
-				ipcContext->m_pMemDesc->rowPitch = lockedSrcRect.Pitch;
+				ipcContext->m_pMemDesc->rowPitch = static_cast<UINT>(rowBytes);
 				ipcContext->m_pMemDesc->frameId++;
 				ipcContext->m_pMemDesc->format = getCompatibleBufferFormat(d3d9FrameGrabber->m_surfFormat);
 
-				PVOID pMemDataMap = incPtr(ipcContext->m_pMemMap, sizeof(*ipcContext->m_pMemDesc));
-				if (static_cast<UINT>(lockedSrcRect.Pitch) == width * 4) {
-					memcpy(pMemDataMap, lockedSrcRect.pBits, width * height * 4);
+				BYTE *pMemDataMap = reinterpret_cast<BYTE *>(ipcContext->m_pMemMap) + sizeof(*ipcContext->m_pMemDesc);
+				const BYTE *pSrc = reinterpret_cast<const BYTE *>(lockedSrcRect.pBits);
+				if (static_cast<size_t>(lockedSrcRect.Pitch) == rowBytes) {
+					memcpy(pMemDataMap, pSrc, rowBytes * static_cast<size_t>(height));
 				} else {
-					UINT i = 0, cleanOffset = 0, pitchOffset = 0;
-					while (i < height) {
-						memcpy(incPtr(pMemDataMap, cleanOffset), incPtr(lockedSrcRect.pBits, pitchOffset), width * 4);
-						cleanOffset += width * 4;
-						pitchOffset += lockedSrcRect.Pitch;
-						i++;
+					size_t cleanOffset = 0, pitchOffset = 0;
+					for (UINT i = 0; i < height; ++i) {
+						memcpy(pMemDataMap + cleanOffset, pSrc + pitchOffset, rowBytes);
+						cleanOffset += rowBytes;
+						pitchOffset += static_cast<size_t>(lockedSrcRect.Pitch);
 					}
 				}
 				ReleaseMutex(ipcContext->m_hMutex);
@@ -392,8 +419,8 @@ HRESULT WINAPI D3D9SCPresent(IDirect3DSwapChain9 *pSc, CONST RECT* pSourceRect,C
 	stillWaiting:
 
 		// only capture a new frame if the old one was processed to shared memory and the delay has passed since the last grab
-		if (!d3d9FrameGrabber->m_mapPending && (GetTickCount() - d3d9FrameGrabber->m_lastGrab >= d3d9FrameGrabber->m_ipcContext->m_pMemDesc->grabDelay)) {
-			if (!ipcContext->m_pMemDesc->grabbingStarted) {
+		if (!d3d9FrameGrabber->m_mapPending && (GetTickCount() - d3d9FrameGrabber->m_lastGrab >= d3d9FrameGrabber->m_ipcContext->m_pConfigDesc->grabDelay)) {
+			if (!ipcContext->m_pConfigDesc->grabbingStarted) {
 				ipcContext->m_pMemDesc->frameId = HOOKSGRABBER_BLANK_FRAME_ID;
 				SetEvent(ipcContext->m_hFrameGrabbedEvent);
 			} else {

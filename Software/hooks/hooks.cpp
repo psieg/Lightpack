@@ -32,15 +32,18 @@ void writeBlankFrame() {
 }
 
 WCHAR *getEventSourceName(char *executableName) {
-	LPWSTR wstrResult = (LPWSTR)malloc(MAX_PATH*2);
-	WCHAR wstrBuf[MAX_PATH];
-	mbstowcs(wstrBuf, executableName, sizeof(wstrBuf));
+	const size_t kBufChars = MAX_PATH + 64;
+	LPWSTR wstrResult = (LPWSTR)calloc(kBufChars, sizeof(WCHAR));
+	if (!wstrResult)
+		return NULL;
+	WCHAR wstrBuf[MAX_PATH] = {};
+	mbstowcs_s(NULL, wstrBuf, MAX_PATH, executableName, _TRUNCATE);
 #ifdef HOOKS_SYSWOW64
-	wcscpy(wstrResult, L"prismatik-hooks32.dll ");
+	wcscpy_s(wstrResult, kBufChars, L"prismatik-hooks32.dll ");
 #else
-	wcscpy(wstrResult, L"prismatik-hooks.dll ");
+	wcscpy_s(wstrResult, kBufChars, L"prismatik-hooks.dll ");
 #endif
-	wcscat(wstrResult, wstrBuf);
+	wcscat_s(wstrResult, kBufChars, wstrBuf);
 
 	return wstrResult;
 }
@@ -81,11 +84,11 @@ HOOKSDLL_API BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD fdwReason, LPVOID lp
 			if (NULL == (g_syncRunMutex = CreateMutex(NULL, false, NULL))) {
 			}
 
-			gLog->setLogLevel(gIpcContext->m_pMemDesc->logLevel);
+			gLog->setLogLevel(gIpcContext->m_pConfigDesc->logLevel);
 
-			gLog->reportLogInfo(L"d3d9 device::present(): 0x%x", gIpcContext->m_pMemDesc->d3d9PresentFuncOffset);
-			gLog->reportLogInfo(L"d3d9 swapchain::present(): 0x%x", gIpcContext->m_pMemDesc->d3d9SCPresentFuncOffset);
-			gLog->reportLogInfo(L"dxgi swapchain::present(): 0x%x", gIpcContext->m_pMemDesc->dxgiPresentFuncOffset);
+			gLog->reportLogInfo(L"d3d9 device::present(): 0x%x", gIpcContext->m_pConfigDesc->d3d9PresentFuncOffset);
+			gLog->reportLogInfo(L"d3d9 swapchain::present(): 0x%x", gIpcContext->m_pConfigDesc->d3d9SCPresentFuncOffset);
+			gLog->reportLogInfo(L"dxgi swapchain::present(): 0x%x", gIpcContext->m_pConfigDesc->dxgiPresentFuncOffset);
 
 			if (!D3D9FrameGrabber::hasInstance()) {
 				d3d9FrameGrabber = D3D9FrameGrabber::getInstance(g_syncRunMutex);

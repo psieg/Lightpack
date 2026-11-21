@@ -118,23 +118,41 @@ bool X11Grabber::reallocate(const QList<ScreenInfo> &screens)
                                    DefaultDepthOfScreen(xscreen),
                                    ZPixmap, NULL, &d->shminfo,
                                    width, height );
-        uint imagesize;
-        imagesize = d->image->bytes_per_line * d->image->height;
-        d->shminfo.shmid = shmget(    IPC_PRIVATE,
-                                      imagesize,
-                                      IPC_CREAT|0777
-                                      );
+        if (!d->image || d->image->bytes_per_line <= 0 || d->image->height <= 0) {
+            qCritical() << Q_FUNC_INFO << "XShmCreateImage returned invalid image";
+            if (d->image)
+                XDestroyImage(d->image);
+            delete d;
+            return false;
+        }
+
+        const size_t imagesize = static_cast<size_t>(d->image->bytes_per_line) * static_cast<size_t>(d->image->height);
+        d->shminfo.shmid = shmget(IPC_PRIVATE,
+                                  imagesize,
+                                  IPC_CREAT | 0600);
         if (d->shminfo.shmid == -1) {
             qCritical() << Q_FUNC_INFO << " error occured while trying to get shared memory: " << strerror(errno);
+            XDestroyImage(d->image);
+            delete d;
+            return false;
         }
 
         char* mem = (char*)shmat(d->shminfo.shmid, 0, 0);
+        if (mem == (char*)-1) {
+            qCritical() << Q_FUNC_INFO << " shmat failed: " << strerror(errno);
+            shmctl(d->shminfo.shmid, IPC_RMID, 0);
+            XDestroyImage(d->image);
+            delete d;
+            return false;
+        }
         d->shminfo.shmaddr = mem;
         d->image->data = mem;
         d->shminfo.readOnly = False;
 
         XShmAttach(_display, &d->shminfo);
         XSync(_display, False);
+        // Mark segment for automatic kernel removal once both X server and Prismatik detach
+        shmctl(d->shminfo.shmid, IPC_RMID, 0);
 
         GrabbedScreen grabScreen;
         grabScreen.imgData = (unsigned char *)mem;

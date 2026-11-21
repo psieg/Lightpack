@@ -106,16 +106,22 @@ void DxgiFrameGrabber::freeDeviceData11() {
 
 void ** DxgiFrameGrabber::calcDxgiPresentPointer() {
 #ifdef HOOKS_SYSWOW64
-	UINT offset = m_ipcContext->m_pMemDesc->dxgiPresentFuncOffset32;
+	UINT offset = m_ipcContext->m_pConfigDesc->dxgiPresentFuncOffset32;
 #else
-	UINT offset = m_ipcContext->m_pMemDesc->dxgiPresentFuncOffset;
+	UINT offset = m_ipcContext->m_pConfigDesc->dxgiPresentFuncOffset;
 #endif
-	void * hDxgi = reinterpret_cast<void *>(GetModuleHandleA("dxgi.dll"));
+	HMODULE hDxgiMod = GetModuleHandleA("dxgi.dll");
+	if (!IsModuleOffsetValid(hDxgiMod, offset, sizeof(void *))) {
+		if (m_logger)
+			m_logger->reportLogError(L"Invalid dxgiPresentFuncOffset = 0x%x", offset);
+		return NULL;
+	}
+	void * hDxgi = reinterpret_cast<void *>(hDxgiMod);
 	if (m_logger)
-		m_logger->reportLogDebug(L"dxgiPresentFuncOffset = 0x%x, hDxgi = 0x%x", offset, hDxgi);
+		m_logger->reportLogDebug(L"dxgiPresentFuncOffset = 0x%x, hDxgi = 0x%p", offset, hDxgi);
 	void ** result = static_cast<void ** >(incPtr(hDxgi, offset));
 	if (m_logger)
-		m_logger->reportLogDebug(L"dxgi.dll = 0x%x, swapchain::present location = 0x%x", hDxgi, result);
+		m_logger->reportLogDebug(L"dxgi.dll = 0x%p, swapchain::present location = 0x%p", hDxgi, result);
 	return result;
 }
 
@@ -175,11 +181,18 @@ bool DxgiFrameGrabber::D3D10Map() {
 		return false;
 	}
 
+	if (!hooksGrabberValidateFrameSize(m_mapWidth, m_mapHeight, mappedTexture.RowPitch)) {
+		logger->reportLogWarning(L"d3d10 frame exceeds shared memory bounds (%ux%u, pitch=%u)", m_mapWidth, m_mapHeight, mappedTexture.RowPitch);
+		m_mapTexture10->Unmap(D3D10CalcSubresource(0, 0, 1));
+		return true;
+	}
+
 	DWORD errorcode;
 	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+		const size_t rowBytes = static_cast<size_t>(m_mapWidth) * 4;
 		ipcContext->m_pMemDesc->width = m_mapWidth;
 		ipcContext->m_pMemDesc->height = m_mapHeight;
-		ipcContext->m_pMemDesc->rowPitch = mappedTexture.RowPitch;
+		ipcContext->m_pMemDesc->rowPitch = static_cast<UINT>(rowBytes);
 		switch (m_mapFormat)
 		{
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
@@ -196,16 +209,16 @@ bool DxgiFrameGrabber::D3D10Map() {
 		}
 		ipcContext->m_pMemDesc->frameId++;
 
-		PVOID pMemDataMap = incPtr(ipcContext->m_pMemMap, sizeof (*ipcContext->m_pMemDesc));
-		if (mappedTexture.RowPitch == m_mapWidth * 4) {
-			memcpy(pMemDataMap, mappedTexture.pData, m_mapWidth * m_mapHeight * 4);
+		BYTE *pMemDataMap = reinterpret_cast<BYTE *>(ipcContext->m_pMemMap) + sizeof(*ipcContext->m_pMemDesc);
+		const BYTE *pSrc = reinterpret_cast<const BYTE *>(mappedTexture.pData);
+		if (mappedTexture.RowPitch == rowBytes) {
+			memcpy(pMemDataMap, pSrc, rowBytes * static_cast<size_t>(m_mapHeight));
 		} else {
-			UINT cleanOffset = 0, pitchOffset = 0, i = 0;
-			while (i < m_mapHeight) {
-				memcpy(incPtr(pMemDataMap, cleanOffset), incPtr(mappedTexture.pData, pitchOffset), m_mapWidth * 4);
-				cleanOffset += m_mapWidth * 4;
+			size_t cleanOffset = 0, pitchOffset = 0;
+			for (UINT i = 0; i < m_mapHeight; ++i) {
+				memcpy(pMemDataMap + cleanOffset, pSrc + pitchOffset, rowBytes);
+				cleanOffset += rowBytes;
 				pitchOffset += mappedTexture.RowPitch;
-				i++;
 			}
 		}
 		ReleaseMutex(ipcContext->m_hMutex);
@@ -280,11 +293,18 @@ bool DxgiFrameGrabber::D3D11Map() {
 		return false;
 	}
 
+	if (!hooksGrabberValidateFrameSize(m_mapWidth, m_mapHeight, mappedTexture.RowPitch)) {
+		logger->reportLogWarning(L"d3d11 frame exceeds shared memory bounds (%ux%u, pitch=%u)", m_mapWidth, m_mapHeight, mappedTexture.RowPitch);
+		m_mapDeviceContext11->Unmap(m_mapTexture11, D3D10CalcSubresource(0, 0, 1));
+		return true;
+	}
+
 	DWORD errorcode;
 	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+		const size_t rowBytes = static_cast<size_t>(m_mapWidth) * 4;
 		ipcContext->m_pMemDesc->width = m_mapWidth;
 		ipcContext->m_pMemDesc->height = m_mapHeight;
-		ipcContext->m_pMemDesc->rowPitch = mappedTexture.RowPitch;
+		ipcContext->m_pMemDesc->rowPitch = static_cast<UINT>(rowBytes);
 		switch (m_mapFormat)
 		{
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
@@ -301,16 +321,16 @@ bool DxgiFrameGrabber::D3D11Map() {
 		}
 		ipcContext->m_pMemDesc->frameId++;
 
-		PVOID pMemDataMap = incPtr(ipcContext->m_pMemMap, sizeof (*ipcContext->m_pMemDesc));
-		if (mappedTexture.RowPitch == m_mapWidth * 4) {
-			memcpy(pMemDataMap, mappedTexture.pData, m_mapWidth * m_mapHeight * 4);
+		BYTE *pMemDataMap = reinterpret_cast<BYTE *>(ipcContext->m_pMemMap) + sizeof(*ipcContext->m_pMemDesc);
+		const BYTE *pSrc = reinterpret_cast<const BYTE *>(mappedTexture.pData);
+		if (mappedTexture.RowPitch == rowBytes) {
+			memcpy(pMemDataMap, pSrc, rowBytes * static_cast<size_t>(m_mapHeight));
 		} else {
-			UINT i = 0, cleanOffset = 0, pitchOffset = 0;
-			while (i < m_mapHeight) {
-				memcpy(incPtr(pMemDataMap, cleanOffset), incPtr(mappedTexture.pData, pitchOffset), m_mapWidth * 4);
-				cleanOffset += m_mapWidth * 4;
+			size_t cleanOffset = 0, pitchOffset = 0;
+			for (UINT i = 0; i < m_mapHeight; ++i) {
+				memcpy(pMemDataMap + cleanOffset, pSrc + pitchOffset, rowBytes);
+				cleanOffset += rowBytes;
 				pitchOffset += mappedTexture.RowPitch;
-				i++;
 			}
 		}
 		ReleaseMutex(ipcContext->m_hMutex);
@@ -364,10 +384,10 @@ HRESULT WINAPI DXGIPresent(IDXGISwapChain * sc, UINT b, UINT c) {
 					dxgiFrameGrabber->m_mapPending = false;
 					logger->reportLogDebug(L"Map succeeded");
 				}
-			} else if (dxgiFrameGrabber->m_ipcContext->m_pMemDesc->grabbingStarted
-				&& GetTickCount() - dxgiFrameGrabber->m_lastGrab >= dxgiFrameGrabber->m_ipcContext->m_pMemDesc->grabDelay) {
+			} else if (dxgiFrameGrabber->m_ipcContext->m_pConfigDesc->grabbingStarted
+				&& GetTickCount() - dxgiFrameGrabber->m_lastGrab >= dxgiFrameGrabber->m_ipcContext->m_pConfigDesc->grabDelay) {
 				// only capture a new frame if the old one was processed to shared memory and the delay has passed since the last grab
-				if (!dxgiFrameGrabber->m_ipcContext->m_pMemDesc->grabbingStarted) {
+				if (!dxgiFrameGrabber->m_ipcContext->m_pConfigDesc->grabbingStarted) {
 					dxgiFrameGrabber->m_ipcContext->m_pMemDesc->frameId = HOOKSGRABBER_BLANK_FRAME_ID;
 					SetEvent(dxgiFrameGrabber->m_ipcContext->m_hFrameGrabbedEvent);
 				} else {
@@ -397,7 +417,7 @@ HRESULT WINAPI DXGIPresent(IDXGISwapChain * sc, UINT b, UINT c) {
 					dxgiFrameGrabber->m_mapPending = true;
 					logger->reportLogDebug(L"Grabbed...");
 				}
-			} else if (!dxgiFrameGrabber->m_ipcContext->m_pMemDesc->grabbingStarted) {
+			} else if (!dxgiFrameGrabber->m_ipcContext->m_pConfigDesc->grabbingStarted) {
 				dxgiFrameGrabber->m_ipcContext->m_pMemDesc->frameId = HOOKSGRABBER_BLANK_FRAME_ID;
 				SetEvent(dxgiFrameGrabber->m_ipcContext->m_hFrameGrabbedEvent);
 				logger->reportLogDebug(L"Sending blank frame because grabbing not started");

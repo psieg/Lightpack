@@ -28,6 +28,7 @@
 
 #include "BufferFormat.h"
 
+#define HOOKSGRABBER_CONFIG_MEM_NAME L"Lightpack.D3D10Grabber.Config"
 #define HOOKSGRABBER_SHARED_MEM_NAME L"Lightpack.D3D10Grabber.SharedMem"
 #define MB (1024*1024)
 #define HOOKSGRABBER_SHARED_MEM_SIZE (50*MB)
@@ -36,12 +37,14 @@
 #define HOOKSGRABBER_PIPE_NAME L"\\\\.\\pipe\\Lightpack.D3D10Grabber"
 
 #define HOOKSGRABBER_BLANK_FRAME_ID 0xffffffff
+#define HOOKSGRABBER_MAX_FRAME_DIM 16384U
 
 #ifdef HOOKS_SYSWOW64
 #define HOOKSGRABBER_SYSWOW64_DESC
 #endif
 
-struct HOOKSGRABBER_SHARED_MEM_DESC {
+/* Read-only configuration written exclusively by Prismatik / offsetfinder */
+struct HOOKSGRABBER_CONFIG_DESC {
 	UINT d3d9PresentFuncOffset;
 	UINT d3d9SCPresentFuncOffset;
 	UINT d3d9ResetFuncOffset;
@@ -56,8 +59,12 @@ struct HOOKSGRABBER_SHARED_MEM_DESC {
 	UINT logLevel;
 	UINT grabDelay;
 	UINT grabbingStarted;
+};
 
-	// Variables below are written by the hook when frames are captured
+#define HOOKSGRABBER_CONFIG_MEM_SIZE (sizeof(struct HOOKSGRABBER_CONFIG_DESC))
+
+/* Frame metadata written by hooked DX processes into the frame shared memory */
+struct HOOKSGRABBER_SHARED_MEM_DESC {
 	UINT frameId;
 	UINT width;
 	UINT height;
@@ -70,4 +77,16 @@ struct HOOKSGRABBER_SHARED_MEM_DESC {
 };
 
 
-#define HOOKSGRABBER_SHARED_MEM_DATA_SIZE (HOOKSGRABBER_SHARED_MEM_SIZE - sizeof(HOOKSGRABBER_SHARED_MEM_DESC))
+#define HOOKSGRABBER_SHARED_MEM_DATA_SIZE (HOOKSGRABBER_SHARED_MEM_SIZE - sizeof(struct HOOKSGRABBER_SHARED_MEM_DESC))
+
+#ifdef __cplusplus
+inline bool hooksGrabberValidateFrameSize(UINT width, UINT height, UINT rowPitch) {
+	if (width == 0 || height == 0 || width > HOOKSGRABBER_MAX_FRAME_DIM || height > HOOKSGRABBER_MAX_FRAME_DIM)
+		return false;
+	const unsigned long long minPitch = static_cast<unsigned long long>(width) * 4ULL;
+	if (static_cast<unsigned long long>(rowPitch) < minPitch)
+		return false;
+	const unsigned long long frameBytes = minPitch * static_cast<unsigned long long>(height);
+	return frameBytes <= static_cast<unsigned long long>(HOOKSGRABBER_SHARED_MEM_DATA_SIZE);
+}
+#endif

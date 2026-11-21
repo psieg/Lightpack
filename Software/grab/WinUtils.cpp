@@ -33,6 +33,10 @@
 #include <psapi.h>
 #include <tlhelp32.h>
 #include <shlwapi.h>
+#include <sddl.h>
+
+#pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "user32.lib")
 
 #include "../src/debug.h"
 
@@ -103,18 +107,16 @@ BOOL SetPrivilege(HANDLE hToken, LPCTSTR szPrivName, BOOL fEnable) {
 BOOL AcquirePrivileges() {
 
 	HANDLE hCurrentProc = GetCurrentProcess();
-	HANDLE hCurrentProcToken;
+	HANDLE hCurrentProcToken = NULL;
+	BOOL ok = FALSE;
 
-	if (!OpenProcessToken(hCurrentProc, TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hCurrentProcToken)) {
-//		syslog(LOG_ERR, "OpenProcessToken Error %u", GetLastError());
-	} else {
-		if (!SetPrivilege(hCurrentProcToken, SE_DEBUG_NAME, TRUE)) {
-//			syslog(LOG_ERR, "SetPrivleges SE_DEBUG_NAME Error %u", GetLastError());
-		} else {
-			return TRUE;
+	if (OpenProcessToken(hCurrentProc, TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hCurrentProcToken)) {
+		if (SetPrivilege(hCurrentProcToken, SE_DEBUG_NAME, TRUE)) {
+			ok = TRUE;
 		}
+		CloseHandle(hCurrentProcToken);
 	}
-	return FALSE;
+	return ok;
 }
 
 BOOL IsUserAdmin() {
@@ -177,7 +179,9 @@ QList<DWORD> * getProcessesIDs(QList<DWORD> * processes, LPCWSTR withModule[], U
 			if (NULL == hProcess)
 				goto nextProcess;
 
-			GetModuleFileNameExW(hProcess, 0, executableName, sizeof(executableName));
+			if (!GetModuleFileNameExW(hProcess, 0, executableName, SIZEOF_ARRAY(executableName))) {
+				goto nextProcess;
+			}
 
 			if (wcsstr(executableName, wstrSystemRootPath) != NULL) {
 				goto nextProcess;
@@ -281,95 +285,82 @@ QList<DWORD> * getHookedProcessesIDs(QList<DWORD> * processes, LPCWSTR wstrSyste
 }
 
 
-PVOID BuildRestrictedSD(PSECURITY_DESCRIPTOR pSD) {
-	DWORD	dwAclLength;
-	PSID	pAuthenticatedUsersSID = NULL;
-	PACL	pDACL	= NULL;
-	BOOL	bResult = FALSE;
-	SID_IDENTIFIER_AUTHORITY siaNT = SECURITY_NT_AUTHORITY;
+static QString getProcessTokenUserSidString(HANDLE hProcess) {
+	HANDLE hToken = NULL;
+	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken))
+		return QString();
 
-	// initialize the security descriptor
-	if (!InitializeSecurityDescriptor(pSD,
-										SECURITY_DESCRIPTOR_REVISION)) {
-//		syslog(LOG_ERR, "InitializeSecurityDescriptor() failed with error %d\n",
-//				GetLastError());
-		goto end;
+	DWORD needed = 0;
+	GetTokenInformation(hToken, TokenUser, NULL, 0, &needed);
+	if (needed == 0) {
+		CloseHandle(hToken);
+		return QString();
 	}
 
-	// obtain a sid for the Authenticated Users Group
-	if (!AllocateAndInitializeSid(&siaNT, 1,
-									SECURITY_AUTHENTICATED_USER_RID, 0, 0, 0, 0, 0, 0, 0,
-									&pAuthenticatedUsersSID)) {
-//		syslog(LOG_ERR, "AllocateAndInitializeSid() failed with error %d\n",
-//				GetLastError());
-		goto end;
+	QByteArray buf(static_cast<int>(needed), 0);
+	QString result;
+	if (GetTokenInformation(hToken, TokenUser, buf.data(), needed, &needed)) {
+		const TOKEN_USER *tokenUser = reinterpret_cast<const TOKEN_USER *>(buf.constData());
+		LPWSTR strSid = NULL;
+		if (ConvertSidToStringSidW(tokenUser->User.Sid, &strSid) && strSid) {
+			result = QString::fromWCharArray(strSid);
+			LocalFree(strSid);
+		}
 	}
-
-	// NOTE:
-	//
-	// The Authenticated Users group includes all user accounts that
-	// have been successfully authenticated by the system. If access
-	// must be restricted to a specific user or group other than
-	// Authenticated Users, the SID can be constructed using the
-	// LookupAccountSid() API based on a user or group name.
-
-	// calculate the DACL length
-	dwAclLength = sizeof(ACL)
-			// add space for Authenticated Users group ACE
-			+ sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD)
-			+ GetLengthSid(pAuthenticatedUsersSID);
-
-	// allocate memory for the DACL
-	pDACL = (PACL) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-								dwAclLength);
-	if (!pDACL) {
-//		syslog(LOG_ERR, "HeapAlloc() failed with error %d\n", GetLastError());
-		goto end;
-	}
-
-	// initialize the DACL
-	if (!InitializeAcl(pDACL, dwAclLength, ACL_REVISION)) {
-//		syslog(LOG_ERR, "InitializeAcl() failed with error %d\n",
-//				GetLastError());
-		goto end;
-	}
-
-	// add the Authenticated Users group ACE to the DACL with
-	// GENERIC_READ, GENERIC_WRITE, and GENERIC_EXECUTE access
-
-	if (!AddAccessAllowedAce(pDACL, ACL_REVISION,
-								MAXIMUM_ALLOWED ,
-								pAuthenticatedUsersSID)) {
-//		syslog(LOG_ERR, "AddAccessAllowedAce() failed with error %d\n",
-//				GetLastError());
-		goto end;
-	}
-
-	// set the DACL in the security descriptor
-	if (!SetSecurityDescriptorDacl(pSD, TRUE, pDACL, FALSE)) {
-//		syslog(LOG_ERR, "SetSecurityDescriptorDacl() failed with error %d\n",
-//				GetLastError());
-		goto end;
-	}
-
-	bResult = TRUE;
-
-end:
-	if (pAuthenticatedUsersSID) FreeSid(pAuthenticatedUsersSID);
-
-	if (bResult == FALSE) {
-		if (pDACL) HeapFree(GetProcessHeap(), 0, pDACL);
-		pDACL = NULL;
-	}
-
-	return (PVOID) pDACL;
+	CloseHandle(hToken);
+	return result;
 }
 
-VOID FreeRestrictedSD(PVOID ptr) {
+PSECURITY_DESCRIPTOR BuildHookObjectSD(DWORD interactiveUserAccessMask, bool highIntegrityNoWriteUp) {
+	const QString currentSid = getProcessTokenUserSidString(GetCurrentProcess());
+	if (currentSid.isEmpty())
+		return NULL;
 
-	if (ptr) HeapFree(GetProcessHeap(), 0, ptr);
+	QString shellSid;
+	HWND hShellWnd = GetShellWindow();
+	if (hShellWnd) {
+		DWORD shellPid = 0;
+		GetWindowThreadProcessId(hShellWnd, &shellPid);
+		if (shellPid != 0) {
+			HANDLE hShellProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shellPid);
+			if (hShellProc) {
+				shellSid = getProcessTokenUserSidString(hShellProc);
+				CloseHandle(hShellProc);
+			}
+		}
+	}
 
-	return;
+	const BOOL isAdmin = IsUserAdmin();
+	const QString hexMask = QStringLiteral("0x%1").arg(static_cast<quint32>(interactiveUserAccessMask), 8, 16, QLatin1Char('0'));
+
+	QString sddl = QStringLiteral("D:P(A;;GA;;;SY)(A;;GA;;;BA)");
+	if (!isAdmin) {
+		sddl += QStringLiteral("(A;;GA;;;%1)").arg(currentSid);
+	} else {
+		sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, currentSid);
+	}
+
+	if (!shellSid.isEmpty() && shellSid.compare(currentSid, Qt::CaseInsensitive) != 0) {
+		sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, shellSid);
+	}
+
+	if (highIntegrityNoWriteUp && isAdmin) {
+		sddl += QStringLiteral("S:(ML;;NW;;;HI)");
+	} else {
+		sddl += QStringLiteral("S:(ML;;NW;;;ME)");
+	}
+
+	PSECURITY_DESCRIPTOR pSD = NULL;
+	const std::wstring sddlW = sddl.toStdWString();
+	if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddlW.c_str(), SDDL_REVISION_1, &pSD, NULL)) {
+		return NULL;
+	}
+	return pSD;
+}
+
+VOID FreeHookObjectSD(PSECURITY_DESCRIPTOR pSD) {
+	if (pSD)
+		LocalFree(pSD);
 }
 
 #if defined(NIGHTLIGHT_SUPPORT)
