@@ -29,57 +29,81 @@
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 
+void AbstractLedDevice::ack(bool ok) {
+	if (m_batchDepth > 0) {
+		m_batchOk = m_batchOk && ok;
+		return;
+	}
+	emit commandCompleted(ok);
+}
+
 void AbstractLedDevice::setUsbPowerLedDisabled(bool isDisabled) {
 	Q_UNUSED(isDisabled);
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void AbstractLedDevice::setGamma(double value, bool updateColors) {
 	m_gamma = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setBrightness(int value, bool updateColors) {
 	m_brightness = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setBrightnessCap(int value, bool updateColors) {
 	m_brightnessCap = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setDitheringEnabled(bool value, bool updateColors) {
 	m_isDitheringEnabled = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setLedMilliAmps(const int value, const bool updateColors) {
 	m_ledMilliAmps = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setPowerSupplyAmps(const double value, const bool updateColors) {
 	m_powerSupplyAmps = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setLuminosityThreshold(int value, bool updateColors) {
 	m_luminosityThreshold = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::setMinimumLuminosityThresholdEnabled(bool value, bool updateColors) {
 	m_isMinimumLuminosityEnabled = value;
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::updateWBAdjustments() {
@@ -91,10 +115,13 @@ void AbstractLedDevice::updateWBAdjustments(const QList<WBAdjustment> &coefs, bo
 	m_wbAdjustments.append(coefs);
 	if (updateColors)
 		setColors(m_colorsSaved);
+	else
+		ack(true);
 }
 
 void AbstractLedDevice::updateDeviceSettings()
 {
+	AckBatch batch(this);
 	using namespace SettingsScope;
 	setGamma(Settings::getDeviceGamma(), false);
 	setBrightness(Settings::getDeviceBrightness(), false);

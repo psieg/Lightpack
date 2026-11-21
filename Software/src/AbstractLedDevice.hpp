@@ -59,6 +59,11 @@ signals:
 	void colorsUpdated(QList<QRgb> colors);
 
 public slots:
+	/*!
+		Opens the underlying device.
+		Contract: every call to open() MUST emit openDeviceSuccess(bool)
+		exactly once, and MUST NOT emit commandCompleted(bool).
+	*/
 	virtual void open() = 0;
 	virtual void close() = 0;
 	virtual void setColors(const QList<QRgb> & colors) = 0;
@@ -96,6 +101,28 @@ public slots:
 	virtual void setUsbPowerLedDisabled(bool isDisabled);
 
 protected:
+	class AckBatch
+	{
+	public:
+		explicit AckBatch(AbstractLedDevice *device) : m_device(device)
+		{
+			if (m_device->m_batchDepth++ == 0)
+				m_device->m_batchOk = true;
+		}
+		~AckBatch()
+		{
+			if (--m_device->m_batchDepth == 0)
+				m_device->ack(m_device->m_batchOk);
+		}
+		AckBatch(const AckBatch &) = delete;
+		AckBatch &operator=(const AckBatch &) = delete;
+
+	private:
+		AbstractLedDevice *m_device;
+	};
+
+	void ack(bool ok);
+
 	virtual void applyColorModifications(const QList<QRgb> & inColors, QList<StructRgb> & outColors, const bool rawColors = false);
 	virtual void applyDithering(QList<StructRgb>& colors, int colorDepth);
 
@@ -114,4 +141,8 @@ protected:
 
 	QList<QRgb> m_colorsSaved;
 	QList<StructRgb> m_colorsBuffer;
+
+private:
+	int m_batchDepth{ 0 };
+	bool m_batchOk{ true };
 };

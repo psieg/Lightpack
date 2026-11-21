@@ -84,8 +84,6 @@ LedDeviceAlienFx::LedDeviceAlienFx(QObject *parent) :
 		{
 			m_isInitialized = true;
 			result = lfxResetFunction();
-		} else {
-			emit ioDeviceSuccess(false);
 		}
 
 	} else {
@@ -108,7 +106,7 @@ LedDeviceAlienFx::~LedDeviceAlienFx()
 void LedDeviceAlienFx::setColors(const QList<QRgb> & colors)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO;
-	if (m_isInitialized)
+	if (m_isInitialized && !colors.isEmpty())
 	{
 		unsigned int numDevs = 0;
 		LFX_RESULT result = lfxGetNumDevicesFunction(&numDevs);
@@ -130,12 +128,11 @@ void LedDeviceAlienFx::setColors(const QList<QRgb> & colors)
 				lfxSetLightColorFunction(devIndex, lightIndex, &lfxColor);
 			lfxUpdateFunction();
 		}
-		emit ioDeviceSuccess(true);
 	}
 	DEBUG_MID_LEVEL << Q_FUNC_INFO;
 
 	// Request new colors
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAlienFx::switchOffLeds()
@@ -148,29 +145,29 @@ void LedDeviceAlienFx::switchOffLeds()
 
 void LedDeviceAlienFx::setRefreshDelay(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAlienFx::setColorDepth(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAlienFx::setSmoothSlowdown(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAlienFx::setColorSequence(const QString& /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 
 void LedDeviceAlienFx::requestFirmwareVersion()
 {
 	emit firmwareVersion(QStringLiteral("unknown (alienfx)"));
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAlienFx::open()

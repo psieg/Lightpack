@@ -26,6 +26,9 @@
 
 #pragma once
 
+#include <optional>
+#include <QHash>
+
 #include "enums.hpp"
 #include "AbstractLedDevice.hpp"
 
@@ -54,6 +57,7 @@ signals:
 
 	// This signals are directly connected to ILedDevice. Don't use outside.
 	void ledDeviceOpen();
+	void ledDeviceClose();
 	void ledDeviceSetColors(const QList<QRgb> & colors);
 	void ledDeviceOffLeds();
 	void ledDeviceSetUsbPowerLedDisabled(bool isDisabled);
@@ -99,43 +103,71 @@ public slots:
 private slots:
 	void ledDeviceCommandCompleted(bool ok);
 	void ledDeviceCommandTimedOut();
+	void ledDeviceOpenTimedOut();
 	void ledDeviceOpenDeviceSuccess(bool isSuccess);
 	void ledDeviceIoDeviceSuccess(bool isSuccess);
+	void onRecreateTimerTimeout();
+
+protected:
+	virtual AbstractLedDevice * createLedDevice(SupportedDevices::DeviceType deviceType);
 
 private:
+	enum class LinkState {
+		Closed,
+		Opening,
+		Ready
+	};
+
+	static constexpr int kMaxConsecutiveOpenTimeouts = 3;
+
 	void initLedDevice();
-	AbstractLedDevice * createLedDevice(SupportedDevices::DeviceType deviceType);
 	void connectSignalSlotsLedDevice();
 	void disconnectSignalSlotsLedDevice();
-	void cmdQueueAppend(LedDeviceCommands::Cmd);
+	void resetCommandState();
+	void enqueueOrSendCommand(LedDeviceCommands::Cmd cmd);
+	void sendCommand(LedDeviceCommands::Cmd cmd);
+	void cmdQueueAppend(LedDeviceCommands::Cmd cmd);
 	void cmdQueueProcessNext();
-	void processOffLeds();
+	void handleDeviceFailure();
+	void onCommandSucceeded();
+	void replayDeviceState();
 	void triggerRecreateLedDevice();
 
+	friend class LedDeviceManagerTest;
+
 private:
-	bool m_isLastCommandCompleted;
-	bool m_isColorsSaved;
-	Backlight::Status m_backlightStatus;
+	LinkState m_linkState{ LinkState::Closed };
+	QHash<AbstractLedDevice *, int> m_pendingOpens;
+	int m_consecutiveOpenTimeouts{ 0 };
+	bool m_isSleeping{ false };
+	bool m_isLastCommandCompleted{ true };
+	bool m_isColorsSaved{ false };
+	bool m_firmwareVersionRequested{ false };
+	Backlight::Status m_backlightStatus{ Backlight::StatusOn };
+	std::optional<LedDeviceCommands::Cmd> m_inFlightCmd;
 
 	QList<LedDeviceCommands::Cmd> m_cmdQueue;
 
 	QList<QRgb> m_savedColors;
-	bool m_savedUsbPowerLedDisabled;
-	int m_savedRefreshDelay;
-	int m_savedColorDepth;
-	int m_savedSmoothSlowdown;
-	double m_savedGamma;
-	int m_savedBrightness;
-	int m_savedBrightnessCap;
-	int m_savedLuminosityThreshold;
-	bool m_savedIsMinimumLuminosityEnabled;
-	bool m_savedDitheringEnabled;
+	bool m_savedUsbPowerLedDisabled{ false };
+	int m_savedRefreshDelay{ 0 };
+	int m_savedColorDepth{ 0 };
+	int m_savedSmoothSlowdown{ 0 };
+	double m_savedGamma{ SettingsScope::Profile::Device::GammaDefault };
+	int m_savedBrightness{ SettingsScope::Profile::Device::BrightnessDefault };
+	int m_savedBrightnessCap{ SettingsScope::Profile::Device::BrightnessCapDefault };
+	int m_savedLuminosityThreshold{ SettingsScope::Profile::Grab::LuminosityThresholdDefault };
+	bool m_savedIsMinimumLuminosityEnabled{ SettingsScope::Profile::Grab::IsMinimumLuminosityEnabledDefault };
+	bool m_savedDitheringEnabled{ SettingsScope::Profile::Device::IsDitheringEnabledDefault };
 	QString m_savedColorSequence;
 
 	QList<AbstractLedDevice *> m_ledDevices;
-	AbstractLedDevice *m_ledDevice;
-	QThread *m_ledDeviceThread;
-	QTimer *m_cmdTimeoutTimer;
-	QTimer *m_recreateTimer;
-	int m_failedCreationAttempts;
+	AbstractLedDevice *m_ledDevice{ nullptr };
+	QThread *m_ledDeviceThread{ nullptr };
+	QTimer *m_cmdTimeoutTimer{ nullptr };
+	QTimer *m_openTimeoutTimer{ nullptr };
+	QTimer *m_recreateTimer{ nullptr };
+	int m_failedCreationAttempts{ 0 };
+	int m_cmdTimeoutMs{ 500 };
+	int m_openTimeoutMs{ 3000 };
 };

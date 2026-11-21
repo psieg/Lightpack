@@ -401,7 +401,8 @@ void LightpackApplication::onSessionChange(SystemSession::Status change)
 				// Process all currently pending signals (which may include updating the color signals)
 				QApplication::processEvents(QEventLoop::AllEvents, 500);
 
-				emit getLightpackApp()->settingsWnd()->switchOffLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOffLeds", Qt::QueuedConnection);
 				QApplication::processEvents(QEventLoop::AllEvents, 500);
 			}
 			break;
@@ -411,7 +412,8 @@ void LightpackApplication::onSessionChange(SystemSession::Status change)
 
 			if (!SettingsScope::Settings::isKeepLightsOnAfterLock())
 			{
-				emit getLightpackApp()->settingsWnd()->switchOffLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOffLeds", Qt::QueuedConnection);
 				m_isLightsTurnedOffBySessionChange = true;
 			}
 			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Sleeping, isSessionLocked:" << m_isSessionLocked << "isLightsWereOnBeforeLock:" << m_isLightsWereOnBeforeLock << "isLightsTurnedOffBySessionChange : " << m_isLightsTurnedOffBySessionChange;
@@ -419,12 +421,15 @@ void LightpackApplication::onSessionChange(SystemSession::Status change)
 			break;
 		case SystemSession::Status::Unlocking:
 			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Unlocking, isSessionLocked:" << m_isSessionLocked << "isLightsWereOnBeforeLock:" << m_isLightsWereOnBeforeLock;
-			if (m_isSessionLocked && !SettingsScope::Settings::isKeepLightsOnAfterLock() && m_isLightsWereOnBeforeLock)
+			if ((m_isSessionLocked && !SettingsScope::Settings::isKeepLightsOnAfterLock() && m_isLightsWereOnBeforeLock)
+				|| (m_isSuspending && !SettingsScope::Settings::isKeepLightsOnAfterSuspend() && m_isLightsWereOnBeforeSuspend))
 			{
-				emit getLightpackApp()->settingsWnd()->switchOnLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOnLeds", Qt::QueuedConnection);
 				m_isLightsTurnedOffBySessionChange = false;
 			}
 			m_isSessionLocked = false;
+			m_isSuspending = false;
 			break;
 		case SystemSession::Status::Sleeping:
 			if (!m_isSuspending)
@@ -432,7 +437,8 @@ void LightpackApplication::onSessionChange(SystemSession::Status change)
 
 			if (!SettingsScope::Settings::isKeepLightsOnAfterSuspend())
 			{
-				emit getLightpackApp()->settingsWnd()->switchOffLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOffLeds", Qt::QueuedConnection);
 				m_isLightsTurnedOffBySessionChange = true;
 			}
 
@@ -444,13 +450,18 @@ void LightpackApplication::onSessionChange(SystemSession::Status change)
 
 			if (m_isSuspending && !SettingsScope::Settings::isKeepLightsOnAfterSuspend() && m_isLightsWereOnBeforeSuspend)
 			{
-				emit getLightpackApp()->settingsWnd()->switchOnLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOnLeds", Qt::QueuedConnection);
 				m_isLightsTurnedOffBySessionChange = false;
 			}
-			if (m_isSuspending)
-				QMetaObject::invokeMethod(m_ledDeviceManager, "updateDeviceSettings", Qt::QueuedConnection);
 
 			m_isSuspending = false;
+			break;
+		case SystemSession::Status::ResumingAutomatic:
+			// Unattended wake (e.g. wake timer / Modern Standby): LedDeviceManager
+			// reopens the device, while LEDs stay off until interactive resume
+			// (Resuming, DisplayOn, or Unlocking).
+			DEBUG_LOW_LEVEL << Q_FUNC_INFO << "ResumingAutomatic, isSuspending:" << m_isSuspending;
 			break;
 		case SystemSession::Status::DisplayOff:
 			if (!m_isDisplayOff)
@@ -458,18 +469,29 @@ void LightpackApplication::onSessionChange(SystemSession::Status change)
 
 			if (!SettingsScope::Settings::isKeepLightsOnAfterScreenOff())
 			{
-				emit getLightpackApp()->settingsWnd()->switchOffLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOffLeds", Qt::QueuedConnection);
 				m_isLightsTurnedOffBySessionChange = true;
 			}
 			m_isDisplayOff = true;
 			break;
 		case SystemSession::Status::DisplayOn:
-			if (m_isDisplayOff && !SettingsScope::Settings::isKeepLightsOnAfterScreenOff() && m_isLightsWereOnBeforeDisplaySleep)
+		{
+			const bool keepOffWhileLocked = m_isSessionLocked && !SettingsScope::Settings::isKeepLightsOnAfterLock();
+			if (!keepOffWhileLocked
+				&& ((m_isDisplayOff && !SettingsScope::Settings::isKeepLightsOnAfterScreenOff() && m_isLightsWereOnBeforeDisplaySleep)
+					|| (m_isSuspending && !SettingsScope::Settings::isKeepLightsOnAfterSuspend() && m_isLightsWereOnBeforeSuspend)))
 			{
-				emit getLightpackApp()->settingsWnd()->switchOnLeds();
+				if (m_ledDeviceManager)
+					QMetaObject::invokeMethod(m_ledDeviceManager, "switchOnLeds", Qt::QueuedConnection);
 				m_isLightsTurnedOffBySessionChange = false;
 			}
 			m_isDisplayOff = false;
+			if (!keepOffWhileLocked)
+				m_isSuspending = false;
+			break;
+		}
+		case SystemSession::Status::DisplayDimmed:
 			break;
 	}
 }
@@ -530,6 +552,7 @@ void LightpackApplication::processCommandLineArguments()
 	if (parser.isSetBacklightOff()) {
 		if (!isRunning()) {
 			LedDeviceLightpack lightpackDevice;
+			lightpackDevice.open();
 			lightpackDevice.switchOffLeds();
 		} else {
 			sendMessage(QStringLiteral("off"));
@@ -862,7 +885,8 @@ void LightpackApplication::commitData(QSessionManager &sessionManager)
 	if (m_ledDeviceManager != NULL)
 	{
 		// Disable signals with new colors
-		disconnect(m_settingsWindow, &SettingsWindow::updateLedsColors, m_ledDeviceManager, &LedDeviceManager::setColors);
+		if (m_settingsWindow)
+			disconnect(m_settingsWindow, &SettingsWindow::updateLedsColors, m_ledDeviceManager, &LedDeviceManager::setColors);
 
 		// Process all currently pending signals
 		QApplication::processEvents(QEventLoop::AllEvents, 1000);

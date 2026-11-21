@@ -193,11 +193,10 @@ void GrabManager::ledDeviceCallSuccess(bool isSuccess) {
 }
 
 void GrabManager::ledDeviceOpenSuccess(bool isSuccess) {
-	if (isSuccess && m_isGrabbingSuspendedDueToDeviceError) {
-		m_isGrabbingSuspendedDueToDeviceError = false;
-		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "device available again, resuming grabbing";
-		start(true);
-	}
+	// Grabbing resumes on ledDeviceCallSuccess(true) once the post-open
+	// replay succeeds, avoiding on/off flapping when open() succeeds but
+	// writes keep failing.
+	Q_UNUSED(isSuccess);
 }
 
 void GrabManager::onGrabberTypeChanged(const Grab::GrabberType grabberType)

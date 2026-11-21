@@ -47,71 +47,87 @@ using namespace SettingsScope;
 LedDeviceManager::LedDeviceManager(QObject *parent)
 	: QObject(parent)
 {
-	m_isLastCommandCompleted = true;
-
 	m_ledDeviceThread = new QThread();
-
-	m_backlightStatus = Backlight::StatusOn;
-
-	m_isColorsSaved = false;
-
-	m_cmdTimeoutTimer = NULL;
-
-	m_recreateTimer = NULL;
-
-	m_failedCreationAttempts = 0;
-
-	m_savedBrightness = SettingsScope::Profile::Device::BrightnessDefault;
-
-	m_savedBrightnessCap = SettingsScope::Profile::Device::BrightnessCapDefault;
 
 	m_ledDevices.reserve(SupportedDevices::DeviceTypesCount);
 	for (int i = 0; i < SupportedDevices::DeviceTypesCount; i++)
-		m_ledDevices.append(NULL);
+		m_ledDevices.append(nullptr);
 }
 
 LedDeviceManager::~LedDeviceManager()
 {
-	m_ledDeviceThread->quit();
-	m_ledDeviceThread->wait();
-
 	for (int i = 0; i < m_ledDevices.size(); i++) {
-		if(m_ledDevices[i])
-			m_ledDevices[i]->close();
+		if (m_ledDevices[i]) {
+			disconnect(m_ledDevices[i], nullptr, this, nullptr);
+			disconnect(this, nullptr, m_ledDevices[i], nullptr);
+		}
 	}
 
-	if (m_cmdTimeoutTimer)
-		delete m_cmdTimeoutTimer;
+	if (m_ledDeviceThread && m_ledDeviceThread->isRunning()) {
+		if (QThread::currentThread() != m_ledDeviceThread) {
+			for (int i = 0; i < m_ledDevices.size(); i++) {
+				if (m_ledDevices[i])
+					QMetaObject::invokeMethod(m_ledDevices[i], "close", Qt::BlockingQueuedConnection);
+			}
+		}
+		m_ledDeviceThread->quit();
+		m_ledDeviceThread->wait();
+	}
+
+	for (int i = 0; i < m_ledDevices.size(); i++) {
+		delete m_ledDevices[i];
+		m_ledDevices[i] = nullptr;
+	}
+
+	delete m_ledDeviceThread;
+	m_ledDeviceThread = nullptr;
 }
 
 void LedDeviceManager::init()
 {
 	if (!m_cmdTimeoutTimer) {
 		m_cmdTimeoutTimer = new QTimer(this);
+		m_cmdTimeoutTimer->setSingleShot(true);
 		// for some reason at 100ms this times out when ajusting white balance from settings (not the wizard) with UDP
 		// also seems to depend on grab interval: the longer the more chances of timing out
-		using namespace std::chrono_literals;
-		m_cmdTimeoutTimer->setInterval(500ms);
+		m_cmdTimeoutTimer->setInterval(m_cmdTimeoutMs);
 		connect(m_cmdTimeoutTimer, &QTimer::timeout, this, &LedDeviceManager::ledDeviceCommandTimedOut);
+	}
+
+	if (!m_openTimeoutTimer) {
+		m_openTimeoutTimer = new QTimer(this);
+		m_openTimeoutTimer->setSingleShot(true);
+		m_openTimeoutTimer->setInterval(m_openTimeoutMs);
+		connect(m_openTimeoutTimer, &QTimer::timeout, this, &LedDeviceManager::ledDeviceOpenTimedOut);
 	}
 
 	if (!m_recreateTimer) {
 		m_recreateTimer = new QTimer(this);
 		m_recreateTimer->setSingleShot(true);
-		connect(m_recreateTimer, &QTimer::timeout, this, &LedDeviceManager::recreateLedDevice);
+		connect(m_recreateTimer, &QTimer::timeout, this, &LedDeviceManager::onRecreateTimerTimeout);
 	}
 
 	initLedDevice();
+}
+
+void LedDeviceManager::onRecreateTimerTimeout()
+{
+	if (m_isSleeping) {
+		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Skipping timer recreate while sleeping";
+		return;
+	}
+
+	recreateLedDevice();
 }
 
 void LedDeviceManager::recreateLedDevice()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-	disconnectSignalSlotsLedDevice();
+	m_isSleeping = false;
 
-	if (m_ledDevice != NULL)
-		m_ledDevice->close();
+	if (m_recreateTimer)
+		m_recreateTimer->stop();
 
 	initLedDevice();
 }
@@ -121,8 +137,15 @@ void LedDeviceManager::switchOnLeds()
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
 	m_backlightStatus = Backlight::StatusOn;
+	m_cmdQueue.removeAll(LedDeviceCommands::OffLeds);
+	if (m_isSleeping) {
+		m_isSleeping = false;
+		m_failedCreationAttempts = 0;
+		recreateLedDevice();
+		return;
+	}
 	if (m_isColorsSaved)
-		emit ledDeviceSetColors(m_savedColors);
+		enqueueOrSendCommand(LedDeviceCommands::SetColors);
 }
 
 void LedDeviceManager::setColors(const QList<QRgb> & colors)
@@ -134,14 +157,7 @@ void LedDeviceManager::setColors(const QList<QRgb> & colors)
 	{
 		m_savedColors = colors;
 		m_isColorsSaved = true;
-		if (m_isLastCommandCompleted)
-		{
-			m_cmdTimeoutTimer->start();
-			m_isLastCommandCompleted = false;
-			emit ledDeviceSetColors(colors);
-		} else {
-			cmdQueueAppend(LedDeviceCommands::SetColors);
-		}
+		enqueueOrSendCommand(LedDeviceCommands::SetColors);
 	}
 }
 
@@ -149,35 +165,17 @@ void LedDeviceManager::switchOffLeds()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_cmdTimeoutTimer->start();
-		m_isLastCommandCompleted = false;
-		processOffLeds();
-	} else {
-		cmdQueueAppend(LedDeviceCommands::OffLeds);
-	}
-}
-
-void LedDeviceManager::processOffLeds()
-{
 	m_backlightStatus = Backlight::StatusOff;
-
-	emit ledDeviceOffLeds();
+	m_cmdQueue.removeAll(LedDeviceCommands::SetColors);
+	enqueueOrSendCommand(LedDeviceCommands::OffLeds);
 }
 
 void LedDeviceManager::setUsbPowerLedDisabled(bool isDisabled) {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << isDisabled
 		<< "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted) {
-		m_cmdTimeoutTimer->start();
-		m_isLastCommandCompleted = false;
-		emit ledDeviceSetUsbPowerLedDisabled(isDisabled);
-	} else {
-		m_savedUsbPowerLedDisabled = isDisabled;
-		cmdQueueAppend(LedDeviceCommands::SetUsbPowerLedDisabled);
-	}
+	m_savedUsbPowerLedDisabled = isDisabled;
+	enqueueOrSendCommand(LedDeviceCommands::SetUsbPowerLedDisabled);
 }
 
 void LedDeviceManager::setRefreshDelay(int value)
@@ -185,241 +183,220 @@ void LedDeviceManager::setRefreshDelay(int value)
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value
 					<< "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_cmdTimeoutTimer->start();
-		m_isLastCommandCompleted = false;
-		emit ledDeviceSetRefreshDelay(value);
-	} else {
-		m_savedRefreshDelay = value;
-		cmdQueueAppend(LedDeviceCommands::SetRefreshDelay);
-	}
+	m_savedRefreshDelay = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetRefreshDelay);
 }
 
 void LedDeviceManager::setColorDepth(int value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_cmdTimeoutTimer->start();
-		m_isLastCommandCompleted = false;
-		emit ledDeviceSetColorDepth(value);
-	} else {
-		m_savedColorDepth = value;
-		cmdQueueAppend(LedDeviceCommands::SetColorDepth);
-	}
+	m_savedColorDepth = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetColorDepth);
 }
 
 void LedDeviceManager::setSmoothSlowdown(int value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetSmoothSlowdown(value);
-	} else {
-		m_savedSmoothSlowdown = value;
-		cmdQueueAppend(LedDeviceCommands::SetSmoothSlowdown);
-	}
+	m_savedSmoothSlowdown = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetSmoothSlowdown);
 }
 
 void LedDeviceManager::setGamma(double value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetGamma(value, m_backlightStatus != Backlight::StatusOff);
-	} else {
-		m_savedGamma = value;
-		cmdQueueAppend(LedDeviceCommands::SetGamma);
-	}
+	m_savedGamma = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetGamma);
 }
 
 void LedDeviceManager::setBrightness(int value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetBrightness(value, m_backlightStatus != Backlight::StatusOff);
-	} else {
-		m_savedBrightness = value;
-		cmdQueueAppend(LedDeviceCommands::SetBrightness);
-	}
+	m_savedBrightness = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetBrightness);
 }
 
 void LedDeviceManager::setBrightnessCap(int value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetBrightnessCap(value, m_backlightStatus != Backlight::StatusOff);
-	}
-	else {
-		m_savedBrightnessCap = value;
-		cmdQueueAppend(LedDeviceCommands::SetBrightnessCap);
-	}
+	m_savedBrightnessCap = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetBrightnessCap);
 }
 
 void LedDeviceManager::setLuminosityThreshold(int value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetLuminosityThreshold(value, m_backlightStatus != Backlight::StatusOff);
-	} else {
-		m_savedLuminosityThreshold = value;
-		cmdQueueAppend(LedDeviceCommands::SetLuminosityThreshold);
-	}
+	m_savedLuminosityThreshold = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetLuminosityThreshold);
 }
 
 void LedDeviceManager::setMinimumLuminosityEnabled(bool value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetMinimumLuminosityEnabled(value, m_backlightStatus != Backlight::StatusOff);
-	} else {
-		m_savedIsMinimumLuminosityEnabled = value;
-		cmdQueueAppend(LedDeviceCommands::SetMinimumLuminosityEnabled);
-	}
+	m_savedIsMinimumLuminosityEnabled = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetMinimumLuminosityEnabled);
 }
 
 void LedDeviceManager::setDitheringEnabled(bool isEnabled) {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << isEnabled
 		<< "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted) {
-		m_cmdTimeoutTimer->start();
-		m_isLastCommandCompleted = false;
-		emit ledDeviceSetDitheringEnabled(isEnabled, m_backlightStatus != Backlight::StatusOff);
-	}
-	else {
-		m_savedDitheringEnabled = isEnabled;
-		cmdQueueAppend(LedDeviceCommands::SetDitheringEnabled);
-	}
+	m_savedDitheringEnabled = isEnabled;
+	enqueueOrSendCommand(LedDeviceCommands::SetDitheringEnabled);
 }
 
 void LedDeviceManager::setColorSequence(const QString& value)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << value << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceSetColorSequence(value);
-	} else {
-		m_savedColorSequence = value;
-		cmdQueueAppend(LedDeviceCommands::SetColorSequence);
-	}
+	m_savedColorSequence = value;
+	enqueueOrSendCommand(LedDeviceCommands::SetColorSequence);
 }
 
 void LedDeviceManager::requestFirmwareVersion()
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceRequestFirmwareVersion();
-	} else {
-		cmdQueueAppend(LedDeviceCommands::RequestFirmwareVersion);
-	}
+	m_firmwareVersionRequested = true;
+	enqueueOrSendCommand(LedDeviceCommands::RequestFirmwareVersion);
 }
 
 void LedDeviceManager::updateDeviceSettings()
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceUpdateDeviceSettings();
-	} else {
-		cmdQueueAppend(LedDeviceCommands::UpdateDeviceSettings);
-	}
+	enqueueOrSendCommand(LedDeviceCommands::UpdateDeviceSettings);
 }
 
 void LedDeviceManager::updateWBAdjustments()
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Is last command completed:" << m_isLastCommandCompleted;
 
-	if (m_isLastCommandCompleted)
-	{
-		m_isLastCommandCompleted = false;
-		m_cmdTimeoutTimer->start();
-		emit ledDeviceUpdateWBAdjustments();
-	} else {
-		cmdQueueAppend(LedDeviceCommands::UpdateWBAdjustments);
-	}
+	enqueueOrSendCommand(LedDeviceCommands::UpdateWBAdjustments);
 }
 
 void LedDeviceManager::ledDeviceCommandCompleted(bool ok)
 {
 	DEBUG_HIGH_LEVEL << Q_FUNC_INFO << ok;
 
-	m_cmdTimeoutTimer->stop();
+	if (sender() != nullptr && sender() != m_ledDevice)
+		return;
 
-	if (ok)
-	{
-		if (m_cmdQueue.isEmpty() == false)
-			cmdQueueProcessNext();
-		else
-			m_isLastCommandCompleted = true;
-	}
-	else
-	{
-		m_cmdQueue.clear();
-		m_isLastCommandCompleted = true;
+	if (m_isLastCommandCompleted || m_linkState != LinkState::Ready) {
+		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Ignoring late/unexpected commandCompleted(" << ok << ")";
+		return;
 	}
 
-	emit ioDeviceSuccess(ok);
+	if (m_cmdTimeoutTimer)
+		m_cmdTimeoutTimer->stop();
+
+	m_isLastCommandCompleted = true;
+
+	if (!ok) {
+		handleDeviceFailure();
+		return;
+	}
+
+	onCommandSucceeded();
 }
 
 void LedDeviceManager::ledDeviceOpenDeviceSuccess(bool isSuccess)
 {
-	if (isSuccess) {
-		m_failedCreationAttempts = 0;
-		emit ledDeviceUpdateDeviceSettings();
-	} else {
-		m_failedCreationAttempts++;
-		triggerRecreateLedDevice();
+	AbstractLedDevice *src = qobject_cast<AbstractLedDevice *>(sender());
+	if (src == nullptr)
+		src = m_ledDevice;
+
+	int &pending = m_pendingOpens[src];
+	if (pending > 0) {
+		--pending;
+	} else if (src == m_ledDevice) {
+		return;
 	}
-	emit openDeviceSuccess(isSuccess);
+
+	if (src != m_ledDevice || pending > 0)
+		return;
+
+	m_consecutiveOpenTimeouts = 0;
+
+	if (m_isSleeping || m_linkState != LinkState::Opening)
+		return;
+
+	if (m_openTimeoutTimer)
+		m_openTimeoutTimer->stop();
+
+	if (!isSuccess) {
+		handleDeviceFailure();
+		return;
+	}
+
+	m_linkState = LinkState::Ready;
+	emit openDeviceSuccess(true);
+	replayDeviceState();
 }
 
 void LedDeviceManager::ledDeviceIoDeviceSuccess(bool isSuccess)
 {
-	if (!isSuccess) {
-		triggerRecreateLedDevice();
-	}
-	emit ioDeviceSuccess(isSuccess);
+	if (sender() != nullptr && sender() != m_ledDevice)
+		return;
+
+	if (m_linkState != LinkState::Ready)
+		return;
+
+	if (!isSuccess)
+		handleDeviceFailure();
 }
 
+void LedDeviceManager::handleDeviceFailure()
+{
+	resetCommandState();
+	if (m_openTimeoutTimer)
+		m_openTimeoutTimer->stop();
+	m_linkState = LinkState::Closed;
+
+	emit ioDeviceSuccess(false);
+
+	if (m_isSleeping)
+		return;
+
+	triggerRecreateLedDevice();
+}
+
+void LedDeviceManager::onCommandSucceeded()
+{
+	if (m_inFlightCmd == LedDeviceCommands::SetColors || m_inFlightCmd == LedDeviceCommands::OffLeds)
+		m_failedCreationAttempts = 0;
+	if (m_inFlightCmd == LedDeviceCommands::RequestFirmwareVersion)
+		m_firmwareVersionRequested = false;
+
+	m_inFlightCmd.reset();
+
+	emit ioDeviceSuccess(true);
+
+	cmdQueueProcessNext();
+}
+
+void LedDeviceManager::replayDeviceState()
+{
+	enqueueOrSendCommand(LedDeviceCommands::UpdateDeviceSettings);
+	if (m_backlightStatus == Backlight::StatusOff) {
+		enqueueOrSendCommand(LedDeviceCommands::OffLeds);
+	} else if (m_isColorsSaved) {
+		enqueueOrSendCommand(LedDeviceCommands::SetColors);
+	}
+	if (m_firmwareVersionRequested) {
+		enqueueOrSendCommand(LedDeviceCommands::RequestFirmwareVersion);
+	}
+}
 
 void LedDeviceManager::triggerRecreateLedDevice()
 {
-	if (!m_recreateTimer->isActive()) {
+	if (m_recreateTimer && !m_recreateTimer->isActive()) {
 		using namespace std::chrono_literals;
 		if (m_failedCreationAttempts == 0) {
 			m_recreateTimer->setInterval(200ms);
@@ -430,6 +407,8 @@ void LedDeviceManager::triggerRecreateLedDevice()
 		} else {
 			m_recreateTimer->setInterval(5s);
 		}
+		if (m_failedCreationAttempts < 10)
+			m_failedCreationAttempts++;
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Will try to recreate device in" << m_recreateTimer->interval() << "msec";
 		m_recreateTimer->start();
 	}
@@ -439,25 +418,41 @@ void LedDeviceManager::initLedDevice()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-	m_isLastCommandCompleted = true;
+	resetCommandState();
 
 	SupportedDevices::DeviceType connectedDevice = Settings::getConnectedDevice();
+	AbstractLedDevice *targetDevice = m_ledDevices[connectedDevice];
 
-	if (m_ledDevices[connectedDevice] == NULL)
+	if (targetDevice == nullptr)
 	{
-		m_ledDevice = m_ledDevices[connectedDevice] = createLedDevice(connectedDevice);
-
-		connectSignalSlotsLedDevice();
-
-		m_ledDevice->moveToThread(m_ledDeviceThread);
+		targetDevice = m_ledDevices[connectedDevice] = createLedDevice(connectedDevice);
+		targetDevice->moveToThread(m_ledDeviceThread);
 		m_ledDeviceThread->start();
-	} else {
-		disconnectSignalSlotsLedDevice();
-
-		m_ledDevice = m_ledDevices[connectedDevice];
-
-		connectSignalSlotsLedDevice();
+		// Keep openDeviceSuccess connected for the lifetime of each cached device
+		// so per-device m_pendingOpens stays accurate across A->B->A switches.
+		connect(targetDevice, &AbstractLedDevice::openDeviceSuccess,
+				this, &LedDeviceManager::ledDeviceOpenDeviceSuccess,
+				Qt::QueuedConnection);
 	}
+
+	if (m_ledDevice != targetDevice) {
+		if (m_ledDevice != nullptr) {
+			emit ledDeviceClose();
+			disconnectSignalSlotsLedDevice();
+		}
+		m_consecutiveOpenTimeouts = 0;
+		m_ledDevice = targetDevice;
+		connectSignalSlotsLedDevice();
+	} else if (m_ledDevice != nullptr) {
+		// Keep signal connections intact on the same device so m_pendingOpens stays accurate
+		emit ledDeviceClose();
+	}
+
+	m_linkState = LinkState::Opening;
+	++m_pendingOpens[m_ledDevice];
+	if (m_openTimeoutTimer)
+		m_openTimeoutTimer->start();
+
 	emit ledDeviceOpen();
 }
 
@@ -525,8 +520,8 @@ AbstractLedDevice * LedDeviceManager::createLedDevice(SupportedDevices::DeviceTy
 	}
 
 	if (device) {
-		device->setLedMilliAmps(Settings::getDeviceLedMilliAmps(deviceType));
-		device->setPowerSupplyAmps(Settings::getDevicePowerSupplyAmps(deviceType));
+		device->setLedMilliAmps(Settings::getDeviceLedMilliAmps(deviceType), false);
+		device->setPowerSupplyAmps(Settings::getDevicePowerSupplyAmps(deviceType), false);
 		return device;
 	}
 
@@ -547,13 +542,13 @@ void LedDeviceManager::connectSignalSlotsLedDevice()
 
 	connect(m_ledDevice, &AbstractLedDevice::commandCompleted,			this, &LedDeviceManager::ledDeviceCommandCompleted,				Qt::QueuedConnection);
 	connect(m_ledDevice, &AbstractLedDevice::ioDeviceSuccess,				this, &LedDeviceManager::ledDeviceIoDeviceSuccess,					Qt::QueuedConnection);
-	connect(m_ledDevice, &AbstractLedDevice::openDeviceSuccess,			this, &LedDeviceManager::ledDeviceOpenDeviceSuccess,				Qt::QueuedConnection);
 
 	connect(m_ledDevice, &AbstractLedDevice::firmwareVersion,			this, &LedDeviceManager::firmwareVersion,						Qt::QueuedConnection);
 	connect(m_ledDevice, &AbstractLedDevice::firmwareVersionUnofficial,	this, &LedDeviceManager::firmwareVersionUnofficial,				Qt::QueuedConnection);
 	connect(m_ledDevice, &AbstractLedDevice::colorsUpdated,		this, &LedDeviceManager::setColors_VirtualDeviceCallback,	Qt::QueuedConnection);
 
 	connect(this, &LedDeviceManager::ledDeviceOpen,								m_ledDevice, &AbstractLedDevice::open,										Qt::QueuedConnection);
+	connect(this, &LedDeviceManager::ledDeviceClose,							m_ledDevice, &AbstractLedDevice::close,										Qt::QueuedConnection);
 	connect(this, &LedDeviceManager::ledDeviceSetColors,				m_ledDevice, &AbstractLedDevice::setColors,						Qt::QueuedConnection);
 	connect(this, &LedDeviceManager::ledDeviceOffLeds,							m_ledDevice, &AbstractLedDevice::switchOffLeds,								Qt::QueuedConnection);
 	connect(this, &LedDeviceManager::ledDeviceSetUsbPowerLedDisabled,		m_ledDevice, &AbstractLedDevice::setUsbPowerLedDisabled,				Qt::QueuedConnection);
@@ -579,8 +574,32 @@ void LedDeviceManager::disconnectSignalSlotsLedDevice()
 		qWarning() << Q_FUNC_INFO << "m_ledDevice == NULL";
 		return;
 	}
-	disconnect(m_ledDevice, nullptr, this, nullptr);
+	disconnect(m_ledDevice, &AbstractLedDevice::commandCompleted, this, nullptr);
+	disconnect(m_ledDevice, &AbstractLedDevice::ioDeviceSuccess, this, nullptr);
+	disconnect(m_ledDevice, &AbstractLedDevice::firmwareVersion, this, nullptr);
+	disconnect(m_ledDevice, &AbstractLedDevice::firmwareVersionUnofficial, this, nullptr);
+	disconnect(m_ledDevice, &AbstractLedDevice::colorsUpdated, this, nullptr);
 	disconnect(this, nullptr, m_ledDevice, nullptr);
+}
+
+void LedDeviceManager::resetCommandState()
+{
+	m_cmdQueue.clear();
+	if (m_cmdTimeoutTimer)
+		m_cmdTimeoutTimer->stop();
+	m_isLastCommandCompleted = true;
+	m_inFlightCmd.reset();
+}
+
+void LedDeviceManager::enqueueOrSendCommand(LedDeviceCommands::Cmd cmd)
+{
+	if (m_linkState != LinkState::Ready)
+		return;
+
+	if (m_isLastCommandCompleted)
+		sendCommand(cmd);
+	else
+		cmdQueueAppend(cmd);
 }
 
 void LedDeviceManager::cmdQueueAppend(LedDeviceCommands::Cmd cmd)
@@ -597,100 +616,97 @@ void LedDeviceManager::cmdQueueProcessNext()
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << m_cmdQueue;
 
-	if (m_cmdQueue.isEmpty() == false)
+	while (!m_cmdQueue.isEmpty() && m_linkState == LinkState::Ready && m_isLastCommandCompleted)
 	{
 		LedDeviceCommands::Cmd cmd = m_cmdQueue.takeFirst();
+		sendCommand(cmd);
+	}
+}
 
-		DEBUG_HIGH_LEVEL << Q_FUNC_INFO << "processing cmd = " << cmd;
+void LedDeviceManager::sendCommand(LedDeviceCommands::Cmd cmd)
+{
+	DEBUG_HIGH_LEVEL << Q_FUNC_INFO << "processing cmd = " << cmd;
 
-		switch(cmd)
-		{
-		case LedDeviceCommands::OffLeds:
-			m_cmdTimeoutTimer->start();
-			processOffLeds();
-			break;
+	if (cmd == LedDeviceCommands::SetColors && !m_isColorsSaved)
+		return;
 
-		case LedDeviceCommands::SetColors:
-			if (m_isColorsSaved) {
-				m_cmdTimeoutTimer->start();
-				emit ledDeviceSetColors(m_savedColors);
-			}
-			break;
+	m_inFlightCmd = cmd;
+	m_isLastCommandCompleted = false;
+	if (m_cmdTimeoutTimer)
+		m_cmdTimeoutTimer->start();
 
-		case LedDeviceCommands::SetUsbPowerLedDisabled:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetUsbPowerLedDisabled(m_savedUsbPowerLedDisabled);
-			break;
+	switch(cmd)
+	{
+	case LedDeviceCommands::OffLeds:
+		emit ledDeviceOffLeds();
+		break;
 
-		case LedDeviceCommands::SetRefreshDelay:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetRefreshDelay(m_savedRefreshDelay);
-			break;
+	case LedDeviceCommands::SetColors:
+		emit ledDeviceSetColors(m_savedColors);
+		break;
 
-		case LedDeviceCommands::SetColorDepth:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetColorDepth(m_savedColorDepth);
-			break;
+	case LedDeviceCommands::SetUsbPowerLedDisabled:
+		emit ledDeviceSetUsbPowerLedDisabled(m_savedUsbPowerLedDisabled);
+		break;
 
-		case LedDeviceCommands::SetSmoothSlowdown:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetSmoothSlowdown(m_savedSmoothSlowdown);
-			break;
+	case LedDeviceCommands::SetRefreshDelay:
+		emit ledDeviceSetRefreshDelay(m_savedRefreshDelay);
+		break;
 
-		case LedDeviceCommands::SetGamma:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetGamma(m_savedGamma, m_backlightStatus != Backlight::StatusOff);
-			break;
+	case LedDeviceCommands::SetColorDepth:
+		emit ledDeviceSetColorDepth(m_savedColorDepth);
+		break;
 
-		case LedDeviceCommands::SetBrightness:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetBrightness(m_savedBrightness, m_backlightStatus != Backlight::StatusOff);
-			break;
+	case LedDeviceCommands::SetSmoothSlowdown:
+		emit ledDeviceSetSmoothSlowdown(m_savedSmoothSlowdown);
+		break;
 
-		case LedDeviceCommands::SetBrightnessCap:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetBrightnessCap(m_savedBrightnessCap, m_backlightStatus != Backlight::StatusOff);
-			break;
+	case LedDeviceCommands::SetGamma:
+		emit ledDeviceSetGamma(m_savedGamma, m_backlightStatus != Backlight::StatusOff);
+		break;
 
-		case LedDeviceCommands::SetColorSequence:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetColorSequence(m_savedColorSequence);
-			break;
+	case LedDeviceCommands::SetBrightness:
+		emit ledDeviceSetBrightness(m_savedBrightness, m_backlightStatus != Backlight::StatusOff);
+		break;
 
-		case LedDeviceCommands::SetLuminosityThreshold:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetLuminosityThreshold(m_savedLuminosityThreshold, m_backlightStatus != Backlight::StatusOff);
-			break;
+	case LedDeviceCommands::SetBrightnessCap:
+		emit ledDeviceSetBrightnessCap(m_savedBrightnessCap, m_backlightStatus != Backlight::StatusOff);
+		break;
 
-		case LedDeviceCommands::SetMinimumLuminosityEnabled:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetMinimumLuminosityEnabled(m_savedIsMinimumLuminosityEnabled, m_backlightStatus != Backlight::StatusOff);
-			break;
+	case LedDeviceCommands::SetColorSequence:
+		emit ledDeviceSetColorSequence(m_savedColorSequence);
+		break;
 
-		case LedDeviceCommands::SetDitheringEnabled:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceSetDitheringEnabled(m_savedDitheringEnabled, m_backlightStatus != Backlight::StatusOff);
-			break;
+	case LedDeviceCommands::SetLuminosityThreshold:
+		emit ledDeviceSetLuminosityThreshold(m_savedLuminosityThreshold, m_backlightStatus != Backlight::StatusOff);
+		break;
 
-		case LedDeviceCommands::RequestFirmwareVersion:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceRequestFirmwareVersion();
-			break;
+	case LedDeviceCommands::SetMinimumLuminosityEnabled:
+		emit ledDeviceSetMinimumLuminosityEnabled(m_savedIsMinimumLuminosityEnabled, m_backlightStatus != Backlight::StatusOff);
+		break;
 
-		case LedDeviceCommands::UpdateDeviceSettings:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceUpdateDeviceSettings();
-			break;
+	case LedDeviceCommands::SetDitheringEnabled:
+		emit ledDeviceSetDitheringEnabled(m_savedDitheringEnabled, m_backlightStatus != Backlight::StatusOff);
+		break;
 
-		case LedDeviceCommands::UpdateWBAdjustments:
-			m_cmdTimeoutTimer->start();
-			emit ledDeviceUpdateWBAdjustments();
-			break;
+	case LedDeviceCommands::RequestFirmwareVersion:
+		emit ledDeviceRequestFirmwareVersion();
+		break;
 
-		default:
-			qCritical() << Q_FUNC_INFO << "fail process cmd =" << cmd;
-			break;
-		}
+	case LedDeviceCommands::UpdateDeviceSettings:
+		emit ledDeviceUpdateDeviceSettings();
+		break;
+
+	case LedDeviceCommands::UpdateWBAdjustments:
+		emit ledDeviceUpdateWBAdjustments();
+		break;
+
+	default:
+		qCritical() << Q_FUNC_INFO << "fail process cmd =" << cmd;
+		m_isLastCommandCompleted = true;
+		if (m_cmdTimeoutTimer)
+			m_cmdTimeoutTimer->stop();
+		break;
 	}
 }
 
@@ -698,17 +714,50 @@ void LedDeviceManager::ledDeviceCommandTimedOut()
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Command timed out!";
 
-	ledDeviceCommandCompleted(false);
-	emit ioDeviceSuccess(false);
-	triggerRecreateLedDevice();
+	handleDeviceFailure();
+}
+
+void LedDeviceManager::ledDeviceOpenTimedOut()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Open device timed out!";
+
+	if (++m_consecutiveOpenTimeouts >= kMaxConsecutiveOpenTimeouts) {
+		qWarning() << Q_FUNC_INFO << "Resetting pending open counter after"
+				   << m_consecutiveOpenTimeouts << "consecutive open timeouts";
+		if (m_ledDevice)
+			m_pendingOpens[m_ledDevice] = 0;
+		m_consecutiveOpenTimeouts = 0;
+	}
+
+	handleDeviceFailure();
 }
 
 void LedDeviceManager::onSessionChange(SystemSession::Status status)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "status:" << status;
 
-	if (status == SystemSession::Status::Sleeping)
-		m_ledDevice->close();
-	else if (status == SystemSession::Status::Resuming)
+	if (status == SystemSession::Status::Sleeping) {
+		if (m_isSleeping)
+			return;
+		m_isSleeping = true;
+		m_consecutiveOpenTimeouts = 0;
+		if (m_recreateTimer)
+			m_recreateTimer->stop();
+		if (m_openTimeoutTimer)
+			m_openTimeoutTimer->stop();
+		resetCommandState();
+		m_linkState = LinkState::Closed;
+		if (m_ledDevice != nullptr) {
+			if (!Settings::isKeepLightsOnAfterSuspend())
+				emit ledDeviceOffLeds();
+			emit ledDeviceClose();
+		}
+	} else if (m_isSleeping && (status == SystemSession::Status::Resuming
+							 || status == SystemSession::Status::ResumingAutomatic
+							 || status == SystemSession::Status::Unlocking
+							 || status == SystemSession::Status::DisplayOn)) {
+		m_isSleeping = false;
+		m_failedCreationAttempts = 0;
 		recreateLedDevice();
+	}
 }

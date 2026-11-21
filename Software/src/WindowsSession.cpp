@@ -77,6 +77,10 @@ namespace SystemSession
 			{
 				DEBUG_LOW_LEVEL << Q_FUNC_INFO << "System is resuming";
 				emit sessionChangeDetected(Resuming);
+			} else if (msg->wParam == PBT_APMRESUMEAUTOMATIC)
+			{
+				DEBUG_LOW_LEVEL << Q_FUNC_INFO << "System is resuming automatically";
+				emit sessionChangeDetected(ResumingAutomatic);
 			} else if (msg->wParam == PBT_POWERSETTINGCHANGE)
 			{
 				DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Power settings changed";

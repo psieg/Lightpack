@@ -55,7 +55,8 @@ public slots:
 	void writeLastWill(const bool force);
 
 private:
-	bool writeBuffer(const QByteArray & buff);
+	bool writeColors(const QList<QRgb> & colors, bool force = false);
+	bool writeBuffer(const QByteArray & buff, bool force = false);
 	void resizeColorsBuffer(int buffSize);
 
 private:

@@ -65,13 +65,14 @@ int LedDeviceAdalight::maxLedsCount()
 
 void LedDeviceAdalight::close()
 {
-	if (m_AdalightDevice == NULL)
-		return;
-
-	if (m_lastWillTimer->isActive()) {
+	if (m_lastWillTimer && m_lastWillTimer->isActive()) {
 		m_lastWillTimer->stop();
 		writeLastWill(true);
 	}
+
+	if (m_AdalightDevice == NULL)
+		return;
+
 	m_AdalightDevice->close();
 
 	delete m_AdalightDevice;
@@ -79,6 +80,12 @@ void LedDeviceAdalight::close()
 }
 
 void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
+{
+	const bool ok = writeColors(colors);
+	ack(ok);
+}
+
+bool LedDeviceAdalight::writeColors(const QList<QRgb> & colors, bool force)
 {
 	// Save colors for showing changes of the brightness
 	m_colorsSaved = colors;
@@ -133,9 +140,7 @@ void LedDeviceAdalight::setColors(const QList<QRgb> & colors)
 		}
 	}
 
-	bool ok = writeBuffer(m_writeBuffer);
-
-	emit commandCompleted(ok);
+	return writeBuffer(m_writeBuffer, force);
 }
 
 void LedDeviceAdalight::switchOffLeds()
@@ -156,22 +161,22 @@ void LedDeviceAdalight::switchOffLeds()
 	}
 
 	bool ok = writeBuffer(m_writeBuffer);
-	emit commandCompleted(ok);
+	ack(ok);
 }
 
 void LedDeviceAdalight::setRefreshDelay(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAdalight::setColorDepth(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAdalight::setSmoothSlowdown(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAdalight::setColorSequence(const QString& value)
@@ -185,15 +190,16 @@ void LedDeviceAdalight::setColorSequence(const QString& value)
 void LedDeviceAdalight::requestFirmwareVersion()
 {
 	emit firmwareVersion(QStringLiteral("unknown (adalight device)"));
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceAdalight::updateDeviceSettings()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
+	AckBatch batch(this);
+	m_colorSequence = Settings::getColorSequence(SupportedDevices::DeviceTypeAdalight);
 	AbstractLedDevice::updateDeviceSettings();
-	setColorSequence(Settings::getColorSequence(SupportedDevices::DeviceTypeAdalight));
 }
 
 void LedDeviceAdalight::open()
@@ -262,20 +268,24 @@ void LedDeviceAdalight::writeLastWill()
 
 void LedDeviceAdalight::writeLastWill(const bool force)
 {
+	if (m_AdalightDevice == NULL || !m_AdalightDevice->isOpen())
+		return;
+
 	if (force || m_AdalightDevice->bytesToWrite() == 0) {
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << "Writing last will frame";
-		setColors(m_colorsSaved);
+		if (!writeColors(m_colorsSaved, force) && !force)
+			emit ioDeviceSuccess(false);
 	}
 }
 
-bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
+bool LedDeviceAdalight::writeBuffer(const QByteArray & buff, bool force)
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "Hex:" << buff.toHex();
 
 	if (m_AdalightDevice == NULL || m_AdalightDevice->isOpen() == false)
 		return false;
 
-	if (m_AdalightDevice->bytesToWrite() > 0) {
+	if (!force && m_AdalightDevice->bytesToWrite() > 0) {
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << "Serial bytesToWrite:" << m_AdalightDevice->bytesToWrite() << ", skipping current frame";
 		// If no more writes will be done ("Send data only of colors changed")
 		// re-schedule last skipped frame in case it's important (for ex a black frame to turn off)
@@ -290,11 +300,9 @@ bool LedDeviceAdalight::writeBuffer(const QByteArray & buff)
 	if (bytesWritten != buff.count())
 	{
 		qWarning() << Q_FUNC_INFO << "bytesWritten != buff.count():" << bytesWritten << buff.count() << " " << m_AdalightDevice->errorString();
-		emit ioDeviceSuccess(false);
 		return false;
 	}
 
-	emit ioDeviceSuccess(true);
 	return true;
 }
 

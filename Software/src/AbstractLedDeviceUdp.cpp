@@ -82,25 +82,25 @@ void AbstractLedDeviceUdp::open()
 void AbstractLedDeviceUdp::setRefreshDelay(int value)
 {
 	Q_UNUSED(value);
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void AbstractLedDeviceUdp::setSmoothSlowdown(int value)
 {
 	Q_UNUSED(value);
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void AbstractLedDeviceUdp::setColorSequence(const QString& value)
 {
 	Q_UNUSED(value);
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void AbstractLedDeviceUdp::setColorDepth(int value)
 {
 	Q_UNUSED(value);
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void AbstractLedDeviceUdp::switchOffLeds()
@@ -133,7 +133,7 @@ void AbstractLedDeviceUdp::resizeColorsBuffer(int buffSize)
 void AbstractLedDeviceUdp::requestFirmwareVersion()
 {
 	emit firmwareVersion(QStringLiteral("N/A (%1 device)").arg(name()));
-	emit commandCompleted(true);
+	ack(true);
 }
 
 bool AbstractLedDeviceUdp::writeBuffer(const QByteArray& buff)
@@ -148,10 +148,8 @@ bool AbstractLedDeviceUdp::writeBuffer(const QByteArray& buff)
 	if (bytesWritten != buff.count())
 	{
 		qWarning() << Q_FUNC_INFO << "bytesWritten != buff.count():" << bytesWritten << buff.count() << " " << m_Socket->errorString();
-		emit ioDeviceSuccess(false);
 		return false;
 	}
 
-	emit ioDeviceSuccess(true);
 	return true;
 }
