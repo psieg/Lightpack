@@ -69,15 +69,12 @@ public slots:
 private:
 	bool readDataFromDevice();
 	bool writeBufferToDevice(int command, hid_device *phid_device);
-	bool tryToReopenDevice();
-	bool readDataFromDeviceWithCheck();
-	bool writeBufferToDeviceWithCheck(int command, hid_device *phid_device);
-	bool writeBufferToAllDevicesWithCheck(int command);
+	bool writeBufferToAllDevices(int command);
 	void resizeColorsBuffer(int buffSize);
 	void closeDevices();
 
 private slots:
-	void restartPingDevice();
+	void restartPingDevice(bool isSuccess);
 	void timerPingDeviceTimeout();
 
 private:
@@ -88,7 +85,7 @@ private:
 
 	unsigned char m_readBuffer[65];	/* 0-ReportID, 1..65-data */
 	unsigned char m_writeBuffer[65];	/* 0-ReportID, 1..65-data */
-	bool m_reopening = false;
+	bool m_suppressPingRestart{ false };
 
 	QTimer *m_timerPingDevice;
 

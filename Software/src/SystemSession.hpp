@@ -19,6 +19,7 @@ namespace SystemSession {
         Unlocking,
         Sleeping,
         Resuming,
+        ResumingAutomatic,
         DisplayOn,
         DisplayOff,
         DisplayDimmed

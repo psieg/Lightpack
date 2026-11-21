@@ -63,7 +63,7 @@ void LedDeviceDrgb::setColors(const QList<QRgb> & colors, const bool rawColors)
 	}
 
 	const bool ok = writeBuffer(m_writeBuffer);
-	emit commandCompleted(ok);
+	ack(ok);
 }
 
 void LedDeviceDrgb::reinitBufferHeader()

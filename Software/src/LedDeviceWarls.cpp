@@ -75,7 +75,7 @@ void LedDeviceWarls::setColors(const QList<QRgb> & colors, const bool rawColors)
 
 	// This may send the header only
 	const bool ok = writeBuffer(m_writeBuffer);
-	emit commandCompleted(ok);
+	ack(ok);
 }
 
 void LedDeviceWarls::reinitBufferHeader()

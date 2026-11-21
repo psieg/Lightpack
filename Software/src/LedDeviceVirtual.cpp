@@ -57,7 +57,7 @@ void LedDeviceVirtual::setColors(const QList<QRgb> & colors)
 
 		emit colorsUpdated(callbackColors);
 	}
-	emit commandCompleted(true);
+	ack(true);
 }
 
 int LedDeviceVirtual::maxLedsCount()
@@ -74,33 +74,33 @@ void LedDeviceVirtual::switchOffLeds()
 		m_colorsSaved << 0;
 	}
 	emit colorsUpdated(m_colorsSaved);
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceVirtual::setRefreshDelay(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceVirtual::setColorDepth(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceVirtual::setSmoothSlowdown(int /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceVirtual::setColorSequence(const QString& /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceVirtual::requestFirmwareVersion()
 {
 	emit firmwareVersion(QStringLiteral("1.0 (virtual device)"));
-	emit commandCompleted(true);
+	ack(true);
 }
 
 

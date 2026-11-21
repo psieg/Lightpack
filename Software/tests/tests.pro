@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT         += widgets network testlib
+QT         += widgets network testlib serialport
 
 TARGET      = LightpackTests
 DESTDIR     = bin
@@ -32,11 +32,13 @@ LIBS += -L../lib -lprismatik-math -lgrab
 
 win32 {
     CONFIG(msvc):DEFINES += _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE
-    LIBS += -ladvapi32
+    LIBS += -ladvapi32 -lsetupapi -luser32
 }
 
 INCLUDEPATH += . \
                ../src \
+               ../src/hidapi \
+               ../alienfx \
                ../hooks \
                ../grab/include \
                ../math/include \
@@ -61,8 +63,21 @@ HEADERS += \
     lightpackmathtest.hpp \
     AppVersionTest.hpp \
     ../src/UpdatesProcessor.hpp \
+    ../src/AbstractLedDevice.hpp \
+    ../src/AbstractLedDeviceUdp.hpp \
+    ../src/LedDeviceLightpack.hpp \
+    ../src/LedDeviceAdalight.hpp \
+    ../src/LedDeviceArdulight.hpp \
+    ../src/LedDeviceDrgb.hpp \
+    ../src/LedDeviceDnrgb.hpp \
+    ../src/LedDeviceWarls.hpp \
+    ../src/LedDeviceVirtual.hpp \
+    ../src/LedDeviceManager.hpp \
+    ../src/SystemSession.hpp \
+    ../src/TimeEvaluations.hpp \
     LightpackCommandLineParserTest.hpp \
-    SettingsMigrationTest.hpp
+    SettingsMigrationTest.hpp \
+    LedDeviceManagerTest.hpp
 
 SOURCES += \
     ../src/ApiServerSetColorTask.cpp \
@@ -71,6 +86,17 @@ SOURCES += \
     ../src/Plugin.cpp \
     ../src/LightpackPluginInterface.cpp \
     ../src/LightpackCommandLineParser.cpp \
+    ../src/AbstractLedDevice.cpp \
+    ../src/AbstractLedDeviceUdp.cpp \
+    ../src/LedDeviceLightpack.cpp \
+    ../src/LedDeviceAdalight.cpp \
+    ../src/LedDeviceArdulight.cpp \
+    ../src/LedDeviceDrgb.cpp \
+    ../src/LedDeviceDnrgb.cpp \
+    ../src/LedDeviceWarls.cpp \
+    ../src/LedDeviceVirtual.cpp \
+    ../src/LedDeviceManager.cpp \
+    ../src/TimeEvaluations.cpp \
     LightpackApiTest.cpp \
     SettingsWindowMockup.cpp \
     GrabCalculationTest.cpp \
@@ -79,10 +105,12 @@ SOURCES += \
     AppVersionTest.cpp \
     ../src/UpdatesProcessor.cpp \
     LightpackCommandLineParserTest.cpp \
-    SettingsMigrationTest.cpp
+    SettingsMigrationTest.cpp \
+    LedDeviceManagerTest.cpp
 
 win32{
     HEADERS += \
+        ../src/LedDeviceAlienFx.hpp \
         HooksTest.h \
         ../hooks/ProxyFuncJmp.hpp \
         ../hooks/ProxyFunc.hpp \
@@ -91,6 +119,8 @@ win32{
         ../hooks/Logger.hpp
 
     SOURCES += \
+        ../src/LedDeviceAlienFx.cpp \
+        ../src/hidapi/windows/hid.c \
         HooksTest.cpp \
         ../hooks/ProxyFuncJmp.cpp \
         ../hooks/hooksutils.cpp \
