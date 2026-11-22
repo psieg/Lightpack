@@ -89,7 +89,6 @@ void X11Grabber::freeScreens()
         XShmDetach(_display, &d->shminfo);
         XDestroyImage(d->image);
         shmdt (d->shminfo.shmaddr);
-        shmctl(d->shminfo.shmid, IPC_RMID, 0);
         delete d;
         d = NULL;
     }

@@ -29,6 +29,7 @@
 
 #include <winsock2.h>
 #include <shlwapi.h>
+#include <aclapi.h>
 #define WINAPI_INLINE WINAPI
 
 #include <QObject>
@@ -55,6 +56,92 @@ using namespace std;
 using namespace WinUtils;
 
 namespace {
+#ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
+#define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR 0x00000100
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+
+	bool isExistingHighIlAdminObject(HANDLE hObj, PSECURITY_DESCRIPTOR pDesiredSD) {
+		if (!hObj || !IsUserAdmin())
+			return false;
+
+		PSID pOwner = NULL;
+		PACL pSacl = NULL;
+		PSECURITY_DESCRIPTOR pObjSD = NULL;
+		DWORD rc = GetSecurityInfo(
+			hObj,
+			SE_KERNEL_OBJECT,
+			OWNER_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION,
+			&pOwner,
+			NULL,
+			NULL,
+			&pSacl,
+			&pObjSD);
+		if (rc != ERROR_SUCCESS || !pOwner) {
+			if (pObjSD)
+				LocalFree(pObjSD);
+			return false;
+		}
+
+		const bool trustedOwner =
+			IsWellKnownSid(pOwner, WinBuiltinAdministratorsSid) ||
+			IsWellKnownSid(pOwner, WinLocalSystemSid);
+
+		DWORD integrityRid = SECURITY_MANDATORY_MEDIUM_RID;
+		if (pSacl && pSacl->AceCount > 0) {
+			LPVOID pAce = NULL;
+			if (GetAce(pSacl, 0, &pAce) && pAce) {
+				const ACE_HEADER *hdr = reinterpret_cast<const ACE_HEADER *>(pAce);
+				if (hdr->AceType == SYSTEM_MANDATORY_LABEL_ACE_TYPE) {
+					const SYSTEM_MANDATORY_LABEL_ACE *mlAce = reinterpret_cast<const SYSTEM_MANDATORY_LABEL_ACE *>(pAce);
+					const PSID pLabelSid = const_cast<PSID>(reinterpret_cast<const void *>(&mlAce->SidStart));
+					if (IsValidSid(pLabelSid) && *GetSidSubAuthorityCount(pLabelSid) > 0) {
+						integrityRid = *GetSidSubAuthority(pLabelSid, *GetSidSubAuthorityCount(pLabelSid) - 1);
+					}
+				}
+			}
+		}
+		LocalFree(pObjSD);
+
+		if (!trustedOwner || integrityRid < SECURITY_MANDATORY_HIGH_RID)
+			return false;
+
+		if (pDesiredSD) {
+			BOOL daclPresent = FALSE, daclDefaulted = FALSE;
+			PACL pDesiredDacl = NULL;
+			if (GetSecurityDescriptorDacl(pDesiredSD, &daclPresent, &pDesiredDacl, &daclDefaulted) && daclPresent && pDesiredDacl) {
+				SetSecurityInfo(
+					hObj,
+					SE_KERNEL_OBJECT,
+					DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+					NULL,
+					NULL,
+					pDesiredDacl,
+					NULL);
+			}
+		}
+		return true;
+	}
+
+	bool applyKernelObjectDacl(HANDLE hObj, PSECURITY_DESCRIPTOR pDesiredSD) {
+		if (!hObj || !pDesiredSD)
+			return false;
+		BOOL daclPresent = FALSE, daclDefaulted = FALSE;
+		PACL pDesiredDacl = NULL;
+		if (!GetSecurityDescriptorDacl(pDesiredSD, &daclPresent, &pDesiredDacl, &daclDefaulted) || !daclPresent || !pDesiredDacl)
+			return false;
+		return SetSecurityInfo(
+			hObj,
+			SE_KERNEL_OBJECT,
+			DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+			NULL,
+			NULL,
+			pDesiredDacl,
+			NULL) == ERROR_SUCCESS;
+	}
+
 	class D3D10GrabberWorker : public QObject {
 		Q_OBJECT
 
@@ -86,8 +173,11 @@ namespace {
 	bool D3D10GrabberWorker::init() {
 		SetLastError(0);
 		m_frameGrabbedEvent = CreateEventW(m_lpsa, FALSE, FALSE, HOOKSGRABBER_FRAMEGRABBED_EVENT_NAME);
-		if (NULL == m_frameGrabbedEvent || GetLastError() == ERROR_ALREADY_EXISTS) {
-			qCritical() << Q_FUNC_INFO << "unable to create exclusive frameGrabbedEvent, error:" << GetLastError();
+		const DWORD createErr = GetLastError();
+		if (NULL == m_frameGrabbedEvent ||
+			(createErr == ERROR_ALREADY_EXISTS && !isExistingHighIlAdminObject(m_frameGrabbedEvent, m_lpsa ? m_lpsa->lpSecurityDescriptor : NULL)))
+		{
+			qCritical() << Q_FUNC_INFO << "unable to create exclusive frameGrabbedEvent, error:" << createErr;
 			if (m_frameGrabbedEvent) {
 				CloseHandle(m_frameGrabbedEvent);
 				m_frameGrabbedEvent = NULL;
@@ -129,6 +219,7 @@ namespace {
 		void sanitizeProcesses();
 	private:
 		QList<DWORD> m_lastSeenDxProcesses;
+		HMODULE m_hInjectorDll;
 		ILibraryInjector * m_libraryInjector;
 		WCHAR m_hooksLibPath[300];
 		WCHAR m_unhookLibPath[300];
@@ -137,6 +228,7 @@ namespace {
 	};
 
 	D3D10GrabberInjector::D3D10GrabberInjector(QObject *parent, bool injectD3D9) : QObject(parent),
+		m_hInjectorDll(NULL),
 		m_libraryInjector(NULL),
 		m_injectD3D9(injectD3D9)
 	{
@@ -145,7 +237,15 @@ namespace {
 	bool D3D10GrabberInjector::init() {
 		AcquirePrivileges();
 
-		DWORD len = GetModuleFileNameW(NULL, m_hooksLibPath, SIZEOF_ARRAY(m_hooksLibPath));
+		WCHAR injectorDllPath[300];
+		DWORD len = GetModuleFileNameW(NULL, injectorDllPath, SIZEOF_ARRAY(injectorDllPath));
+		if (len == 0 || len >= SIZEOF_ARRAY(injectorDllPath))
+			return false;
+		PathRemoveFileSpecW(injectorDllPath);
+		if (wcscat_s(injectorDllPath, SIZEOF_ARRAY(injectorDllPath), L"\\libraryinjector.dll") != 0)
+			return false;
+
+		len = GetModuleFileNameW(NULL, m_hooksLibPath, SIZEOF_ARRAY(m_hooksLibPath));
 		if (len == 0 || len >= SIZEOF_ARRAY(m_hooksLibPath))
 			return false;
 		PathRemoveFileSpecW(m_hooksLibPath);
@@ -164,13 +264,26 @@ namespace {
 		if (!GetWindowsDirectoryW(m_systemrootPath, SIZEOF_ARRAY(m_systemrootPath)))
 			return false;
 
-		HRESULT hr = CoInitialize(0);
-		//		hr = InitComSecurity();
-		//		hr = CoCreateInstanceAsAdmin(NULL, CLSID_ILibraryInjector, IID_ILibraryInjector, reinterpret_cast<void **>(&m_libraryInjector));
-		hr = CoCreateInstance(CLSID_ILibraryInjector, NULL, CLSCTX_INPROC_SERVER, IID_ILibraryInjector, reinterpret_cast<void **>(&m_libraryInjector));
-		if (FAILED(hr)) {
-			qCritical() << Q_FUNC_INFO << "Can't create libraryinjector. D3D10Grabber wasn't initialised. Please try to register server: regsvr32 libraryinjector.dll";
-			CoUninitialize();
+		// Load libraryinjector.dll directly from the application directory without COM registry lookup (prevents HKCU COM hijacking).
+		m_hInjectorDll = LoadLibraryExW(injectorDllPath, NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+		if (!m_hInjectorDll) {
+			qCritical() << Q_FUNC_INFO << "Can't load libraryinjector.dll from application directory, error:" << GetLastError();
+			return false;
+		}
+
+		LPFNGETCLASSOBJECT pDllGetClassObject = reinterpret_cast<LPFNGETCLASSOBJECT>(GetProcAddress(m_hInjectorDll, "DllGetClassObject"));
+		IClassFactory *pFactory = NULL;
+		HRESULT hr = pDllGetClassObject
+			? pDllGetClassObject(CLSID_ILibraryInjector, IID_IClassFactory, reinterpret_cast<void **>(&pFactory))
+			: E_FAIL;
+		if (SUCCEEDED(hr) && pFactory) {
+			hr = pFactory->CreateInstance(NULL, IID_ILibraryInjector, reinterpret_cast<void **>(&m_libraryInjector));
+			pFactory->Release();
+		}
+		if (FAILED(hr) || !m_libraryInjector) {
+			qCritical() << Q_FUNC_INFO << "Can't instantiate ILibraryInjector from libraryinjector.dll.";
+			FreeLibrary(m_hInjectorDll);
+			m_hInjectorDll = NULL;
 			return false;
 		}
 
@@ -183,7 +296,11 @@ namespace {
 	D3D10GrabberInjector::~D3D10GrabberInjector() {
 		if (m_libraryInjector) {
 			m_libraryInjector->Release();
-			CoUninitialize();
+			m_libraryInjector = NULL;
+		}
+		if (m_hInjectorDll) {
+			FreeLibrary(m_hInjectorDll);
+			m_hInjectorDll = NULL;
 		}
 	}
 
@@ -257,7 +374,10 @@ public:
 			return false;
 		}
 
-		PSECURITY_DESCRIPTOR pConfigSD = BuildHookObjectSD(FILE_MAP_READ | READ_CONTROL, true);
+		const DWORD initialConfigAccess = IsUserAdmin()
+			? (FILE_MAP_READ | READ_CONTROL)
+			: (FILE_MAP_READ | FILE_MAP_WRITE | READ_CONTROL);
+		PSECURITY_DESCRIPTOR pConfigSD = BuildHookObjectSD(initialConfigAccess, true);
 		PSECURITY_DESCRIPTOR pFrameSD = BuildHookObjectSD(FILE_MAP_READ | FILE_MAP_WRITE | READ_CONTROL, false);
 		PSECURITY_DESCRIPTOR pMutexSD = BuildHookObjectSD(SYNCHRONIZE | MUTEX_MODIFY_STATE | READ_CONTROL, false);
 		if (!pConfigSD || !pFrameSD || !pMutexSD) {
@@ -306,7 +426,19 @@ public:
 		if(m_isInited)
 			return true;
 
+		// Initialize injector and unhook any stale processes from prior runs before creating IPC objects
+		m_injectorThread.reset(new QThread());
+		m_injector.reset(new D3D10GrabberInjector(NULL, m_injectD3D9));
+		if (!m_injector->init()) {
+			qCritical(Q_FUNC_INFO " Init D3D10GrabberInjector failed. D3D10Grabber wasn't initialised.");
+			m_injector.reset();
+			m_injectorThread.reset();
+			return false;
+		}
+
 		if (!initIPC()) {
+			m_injector.reset();
+			m_injectorThread.reset();
 			freeIPC();
 			qCritical() << Q_FUNC_INFO << "Can't init interprocess communication mechanism. D3D10Grabber wasn't initialised.";
 			return false;
@@ -314,15 +446,21 @@ public:
 
 #ifdef _WIN64 // Find the required 32-bit addresses via offsetfinder
 		WCHAR path[MAX_PATH + 32];
+		WCHAR exeDir[MAX_PATH + 32];
 
 		DWORD pathLen = GetModuleFileNameW(NULL, path, SIZEOF_ARRAY(path));
 		if (pathLen == 0 || pathLen >= SIZEOF_ARRAY(path)) {
+			m_injector.reset();
+			m_injectorThread.reset();
 			freeIPC();
 			return false;
 		}
 		PathRemoveFileSpecW(path);
-		if (wcscat_s(path, SIZEOF_ARRAY(path), L"\\") != 0 ||
+		if (wcscpy_s(exeDir, SIZEOF_ARRAY(exeDir), path) != 0 ||
+			wcscat_s(path, SIZEOF_ARRAY(path), L"\\") != 0 ||
 			wcscat_s(path, SIZEOF_ARRAY(path), lightpackOffsetFinderName) != 0) {
+			m_injector.reset();
+			m_injectorThread.reset();
 			freeIPC();
 			return false;
 		}
@@ -340,37 +478,50 @@ public:
 			FALSE,			// Set handle inheritance to FALSE
 			0,				// No creation flags
 			NULL,			// Use parent's environment block
-			NULL,			// Use parent's starting directory
+			exeDir,			// Explicit application directory (never inherit untrusted CWD)
 			&si,			// Pointer to STARTUPINFO structure
 			&pi)			// Pointer to PROCESS_INFORMATION structure
 			) {
-			qCritical(Q_FUNC_INFO " Can't get 32bit offsets, failed to run offsetfinder: %x. D3D10Grabber wasn't initialised.", GetLastError());
+			const DWORD createErr = GetLastError();
+			qCritical(Q_FUNC_INFO " Can't get 32bit offsets, failed to run offsetfinder: %x. D3D10Grabber wasn't initialised.", createErr);
+			m_injector.reset();
+			m_injectorThread.reset();
 			freeIPC();
 			return false;
 		}
 
-		WaitForSingleObject(pi.hProcess, INFINITE);
+		const DWORD waitRc = WaitForSingleObject(pi.hProcess, 10000);
+		if (waitRc != WAIT_OBJECT_0) {
+			TerminateProcess(pi.hProcess, 1);
+		}
 
-		DWORD exitCode = -1;
+		DWORD exitCode = static_cast<DWORD>(-1);
 		GetExitCodeProcess(pi.hProcess, &exitCode);
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
-		if (exitCode) {
+		if (waitRc != WAIT_OBJECT_0 || exitCode != 0) {
 			qCritical(Q_FUNC_INFO " Can't get 32bit offsets, offsetfinder returned %x. D3D10Grabber wasn't initialised.", exitCode);
+			m_injector.reset();
+			m_injectorThread.reset();
 			freeIPC();
 			return false;
 		}
 
 #endif
 
-		m_injectorThread.reset(new QThread());
-		m_injector.reset(new D3D10GrabberInjector(NULL, m_injectD3D9));
-		if (!m_injector->init()) {
-			qCritical(Q_FUNC_INFO " Init D3D10GrabberInjector failed. D3D10Grabber wasn't initialised.");
-			m_injector.reset();
-			freeIPC();
-			return false;
+		// Lock config mapping down to strictly read-only for same-user processes before starting injection
+		if (!IsUserAdmin() && m_configMem) {
+			PSECURITY_DESCRIPTOR pReadOnlySD = BuildHookObjectSD(FILE_MAP_READ | READ_CONTROL, false);
+			if (!pReadOnlySD || !applyKernelObjectDacl(m_configMem, pReadOnlySD)) {
+				FreeHookObjectSD(pReadOnlySD);
+				m_injector.reset();
+				m_injectorThread.reset();
+				freeIPC();
+				return false;
+			}
+			FreeHookObjectSD(pReadOnlySD);
 		}
+
 		m_injector->moveToThread(m_injectorThread.data());
 		m_injectorThread->start();
 
@@ -428,15 +579,10 @@ public:
 		}
 		m_isStarted = true;
 		if (m_configMap) {
-			DWORD errorcode;
-			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(m_mutex, INFINITE))) {
-				memcpy(&m_configDesc, m_configMap, sizeof(m_configDesc));
-				m_configDesc.grabbingStarted = TRUE;
-				memcpy(m_configMap, &m_configDesc, sizeof(m_configDesc));
-				ReleaseMutex(m_mutex);
-			} else {
-				qWarning() << Q_FUNC_INFO << "couldn't start grabbing: " << errorcode;
-			}
+			m_configDesc.grabbingStarted = TRUE;
+			InterlockedExchange(
+				reinterpret_cast<volatile LONG *>(&static_cast<HOOKSGRABBER_CONFIG_DESC *>(m_configMap)->grabbingStarted),
+				TRUE);
 		}
 	}
 
@@ -444,15 +590,10 @@ public:
 	{
 		m_isStarted = false;
 		if (m_configMap) {
-			DWORD errorcode;
-			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(m_mutex, INFINITE))) {
-				memcpy(&m_configDesc, m_configMap, sizeof(m_configDesc));
-				m_configDesc.grabbingStarted = FALSE;
-				memcpy(m_configMap, &m_configDesc, sizeof(m_configDesc));
-				ReleaseMutex(m_mutex);
-			} else {
-				qWarning() << Q_FUNC_INFO << "couldn't stop grabbing: " << errorcode;
-			}
+			m_configDesc.grabbingStarted = FALSE;
+			InterlockedExchange(
+				reinterpret_cast<volatile LONG *>(&static_cast<HOOKSGRABBER_CONFIG_DESC *>(m_configMap)->grabbingStarted),
+				FALSE);
 		}
 	}
 
@@ -462,15 +603,10 @@ public:
 		if (msec < 0)
 			msec = 0;
 		if (m_configMap) {
-			DWORD errorcode;
-			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(m_mutex, INFINITE))) {
-				memcpy(&m_configDesc, m_configMap, sizeof(m_configDesc));
-				m_configDesc.grabDelay = static_cast<UINT>(msec);
-				memcpy(m_configMap, &m_configDesc, sizeof(m_configDesc));
-				ReleaseMutex(m_mutex);
-			} else {
-				qWarning(Q_FUNC_INFO " couldn't set grab interval: ", errorcode);
-			}
+			m_configDesc.grabDelay = static_cast<UINT>(msec);
+			InterlockedExchange(
+				reinterpret_cast<volatile LONG *>(&static_cast<HOOKSGRABBER_CONFIG_DESC *>(m_configMap)->grabDelay),
+				static_cast<LONG>(m_configDesc.grabDelay));
 		}
 	}
 
@@ -489,7 +625,15 @@ public:
 		}
 
 		HOOKSGRABBER_SHARED_MEM_DESC localDesc;
+		bool lockedMutex = false;
+		if (m_mutex) {
+			const DWORD waitRc = WaitForSingleObject(m_mutex, 5);
+			lockedMutex = (waitRc == WAIT_OBJECT_0 || waitRc == WAIT_ABANDONED);
+		}
 		memcpy(&localDesc, m_memMap, sizeof(localDesc));
+		if (lockedMutex) {
+			ReleaseMutex(m_mutex);
+		}
 		m_memDesc = localDesc;
 
 		if (localDesc.frameId == HOOKSGRABBER_BLANK_FRAME_ID || localDesc.frameId == m_lastFrameId) {
@@ -579,8 +723,11 @@ private:
 	{
 		SetLastError(0);
 		m_configMem = CreateFileMappingW(INVALID_HANDLE_VALUE, lpsa, PAGE_READWRITE, 0, static_cast<DWORD>(HOOKSGRABBER_CONFIG_MEM_SIZE), HOOKSGRABBER_CONFIG_MEM_NAME);
-		if (!m_configMem || GetLastError() == ERROR_ALREADY_EXISTS) {
-			qCritical() << Q_FUNC_INFO << "couldn't create exclusive config mapping, error code " << GetLastError();
+		const DWORD createErr = GetLastError();
+		if (!m_configMem ||
+			(createErr == ERROR_ALREADY_EXISTS && !isExistingHighIlAdminObject(m_configMem, lpsa ? lpsa->lpSecurityDescriptor : NULL)))
+		{
+			qCritical() << Q_FUNC_INFO << "couldn't create exclusive config mapping, error code " << createErr;
 			if (m_configMem) {
 				CloseHandle(m_configMem);
 				m_configMem = NULL;
@@ -590,7 +737,14 @@ private:
 
 		m_configMap = MapViewOfFile(m_configMem, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, HOOKSGRABBER_CONFIG_MEM_SIZE);
 		if (!m_configMap) {
-			qCritical() << Q_FUNC_INFO << "couldn't map config memory, error code " << GetLastError();
+			const DWORD mapErr = GetLastError();
+			qCritical() << Q_FUNC_INFO << "couldn't map config memory, error code " << mapErr;
+			return false;
+		}
+		MEMORY_BASIC_INFORMATION mbi = {};
+		if (VirtualQuery(m_configMap, &mbi, sizeof(mbi)) == 0 || mbi.RegionSize < HOOKSGRABBER_CONFIG_MEM_SIZE) {
+			UnmapViewOfFile(m_configMap);
+			m_configMap = NULL;
 			return false;
 		}
 		return true;
@@ -600,8 +754,11 @@ private:
 	{
 		SetLastError(0);
 		m_sharedMem = CreateFileMappingW(INVALID_HANDLE_VALUE, lpsa, PAGE_READWRITE, 0, HOOKSGRABBER_SHARED_MEM_SIZE, HOOKSGRABBER_SHARED_MEM_NAME);
-		if (!m_sharedMem || GetLastError() == ERROR_ALREADY_EXISTS) {
-			qCritical() << Q_FUNC_INFO << "couldn't create exclusive frame mapping, error code " << GetLastError();
+		const DWORD createErr = GetLastError();
+		if (!m_sharedMem ||
+			(createErr == ERROR_ALREADY_EXISTS && !isExistingHighIlAdminObject(m_sharedMem, lpsa ? lpsa->lpSecurityDescriptor : NULL)))
+		{
+			qCritical() << Q_FUNC_INFO << "couldn't create exclusive frame mapping, error code " << createErr;
 			if (m_sharedMem) {
 				CloseHandle(m_sharedMem);
 				m_sharedMem = NULL;
@@ -618,10 +775,19 @@ private:
 			return false;
 
 		m_memMap = MapViewOfFile(m_sharedMem, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, HOOKSGRABBER_SHARED_MEM_SIZE );
-		if (!m_memMap)
-			qWarning() << Q_FUNC_INFO << "couldn't map shared memory. error code " << GetLastError();
+		if (!m_memMap) {
+			const DWORD mapErr = GetLastError();
+			qWarning() << Q_FUNC_INFO << "couldn't map shared memory. error code " << mapErr;
+			return false;
+		}
+		MEMORY_BASIC_INFORMATION mbi = {};
+		if (VirtualQuery(m_memMap, &mbi, sizeof(mbi)) == 0 || mbi.RegionSize < HOOKSGRABBER_SHARED_MEM_SIZE) {
+			UnmapViewOfFile(m_memMap);
+			m_memMap = NULL;
+			return false;
+		}
 
-		return NULL != m_memMap;
+		return true;
 	}
 
 	bool fillConfigDesc(HOOKSGRABBER_CONFIG_DESC *configDesc)
@@ -648,8 +814,11 @@ private:
 	{
 		SetLastError(0);
 		m_mutex = CreateMutexW(lpsa, FALSE, HOOKSGRABBER_MUTEX_MEM_NAME);
-		if (!m_mutex || GetLastError() == ERROR_ALREADY_EXISTS) {
-			qCritical() << Q_FUNC_INFO << "couldn't create exclusive mutex, error code " << GetLastError();
+		const DWORD createErr = GetLastError();
+		if (!m_mutex ||
+			(createErr == ERROR_ALREADY_EXISTS && !isExistingHighIlAdminObject(m_mutex, lpsa ? lpsa->lpSecurityDescriptor : NULL)))
+		{
+			qCritical() << Q_FUNC_INFO << "couldn't create exclusive mutex, error code " << createErr;
 			if (m_mutex) {
 				CloseHandle(m_mutex);
 				m_mutex = NULL;
@@ -678,7 +847,6 @@ private:
 
 		disconnect(this, &D3D10GrabberImpl::handleIfFrameGrabbed, nullptr, nullptr);
 		freeIPC();
-		CoUninitialize();
 		m_isInited = false;
 	}
 

@@ -1,4 +1,5 @@
 #include "Logger.hpp"
+#include <stdio.h>
 #include <stdlib.h>
 
 Logger *Logger::_this = NULL;
@@ -63,11 +64,13 @@ void Logger::reportLogError(LPCWSTR message, ...) {
 }
 
 void Logger::reportLog(DWORD type, DWORD msgId, LPCWSTR message, va_list ap) {
-	if (m_hEventSrc && m_reportLogBuf) {
-		ZeroMemory(m_reportLogBuf, REPORT_LOG_BUF_SIZE);
-		int sprintfResult = wvsprintfW(m_reportLogBuf, message, ap);
-		if (sprintfResult > -1)
-			ReportEventW(m_hEventSrc, type & 0xFFFF, 0, msgId, NULL, 1, 0, const_cast<const WCHAR **>(&m_reportLogBuf), NULL);
+	if (m_hEventSrc && message) {
+		WCHAR localBuf[REPORT_LOG_BUF_SIZE / sizeof(WCHAR)] = {};
+		int sprintfResult = _vsnwprintf_s(localBuf, _countof(localBuf), _TRUNCATE, message, ap);
+		if (sprintfResult >= 0 || localBuf[0] != L'\0') {
+			LPCWSTR msgPtr = localBuf;
+			ReportEventW(m_hEventSrc, type & 0xFFFF, 0, msgId, NULL, 1, 0, &msgPtr, NULL);
+		}
 	}
 }
 

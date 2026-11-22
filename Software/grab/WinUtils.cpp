@@ -34,6 +34,8 @@
 #include <tlhelp32.h>
 #include <shlwapi.h>
 #include <sddl.h>
+#include <algorithm>
+#include <vector>
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "user32.lib")
@@ -146,44 +148,48 @@ BOOL IsUserAdmin() {
 
 QList<DWORD> * getProcessesIDs(QList<DWORD> * processes, LPCWSTR withModule[], UINT withModuleCount, LPCWSTR withoutModule[], UINT withoutModuleCount, LPCWSTR wstrSystemRootPath, BOOL requireWindow) {
 
-	DWORD aProcesses[1024];
-	HMODULE hMods[1024];
-	DWORD cbNeeded;
-	DWORD cProcesses;
+	std::vector<DWORD> aProcesses(1024);
+	std::vector<HMODULE> hMods(1024);
+	DWORD cbNeeded = 0;
+	DWORD cProcesses = 0;
 	char debug_buf_process[255];
-	//char debug_buf_module[255];
 	WCHAR executableName[MAX_PATH];
 	unsigned int i;
 
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "scanning";
 
-	//		Get the list of process identifiers.
 	processes->clear();
 
-	if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
-		return NULL;
+	size_t sysRootLen = wstrSystemRootPath ? wcslen(wstrSystemRootPath) : 0;
+	while (sysRootLen > 0 && (wstrSystemRootPath[sysRootLen - 1] == L'\\' || wstrSystemRootPath[sysRootLen - 1] == L'/'))
+		--sysRootLen;
 
-	// Calculate how many process identifiers were returned.
+	for (;;) {
+		const DWORD bufBytes = static_cast<DWORD>(aProcesses.size() * sizeof(DWORD));
+		if (!EnumProcesses(aProcesses.data(), bufBytes, &cbNeeded))
+			return NULL;
+		if (cbNeeded < bufBytes || aProcesses.size() >= 65536)
+			break;
+		aProcesses.resize(aProcesses.size() * 2);
+	}
 
-	cProcesses = cbNeeded / sizeof(DWORD);
-
-	// Print the names of the modules for each process.
+	cProcesses = std::min<DWORD>(cbNeeded / sizeof(DWORD), static_cast<DWORD>(aProcesses.size()));
 
 	for (i = 0; i < cProcesses; i++)
 	{
-		if (aProcesses[i] != GetCurrentProcessId()) {
-			HANDLE hProcess;
-			hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
-				PROCESS_VM_READ,
-				FALSE, aProcesses[i]);
+		if (aProcesses[i] != 0 && aProcesses[i] != GetCurrentProcessId()) {
+			HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, aProcesses[i]);
 			if (NULL == hProcess)
-				goto nextProcess;
+				continue;
 
 			if (!GetModuleFileNameExW(hProcess, 0, executableName, SIZEOF_ARRAY(executableName))) {
 				goto nextProcess;
 			}
 
-			if (wcsstr(executableName, wstrSystemRootPath) != NULL) {
+			if (sysRootLen > 0 &&
+				_wcsnicmp(executableName, wstrSystemRootPath, sysRootLen) == 0 &&
+				(executableName[sysRootLen] == L'\\' || executableName[sysRootLen] == L'/' || executableName[sysRootLen] == L'\0'))
+			{
 				goto nextProcess;
 			}
 
@@ -199,69 +205,76 @@ QList<DWORD> * getProcessesIDs(QList<DWORD> * processes, LPCWSTR withModule[], U
 				}
 			}
 
-			// Get a list of all the modules in this process.
-#ifdef _WIN64
-			if (EnumProcessModulesEx(hProcess, hMods, sizeof(hMods), &cbNeeded, LIST_MODULES_ALL))
-#else
-			if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
-#endif
+			// Dynamically query all modules in this process without reading out-of-bounds if >1024 modules are loaded.
 			{
-				bool isModulePresent = false;
-				for (DWORD j = 0; j < (cbNeeded / sizeof(HMODULE)); j++)
+				BOOL enumOk = FALSE;
+				for (;;) {
+					const DWORD modBufBytes = static_cast<DWORD>(hMods.size() * sizeof(HMODULE));
+#ifdef _WIN64
+					enumOk = EnumProcessModulesEx(hProcess, hMods.data(), modBufBytes, &cbNeeded, LIST_MODULES_ALL);
+#else
+					enumOk = EnumProcessModules(hProcess, hMods.data(), modBufBytes, &cbNeeded);
+#endif
+					if (!enumOk || cbNeeded <= modBufBytes || hMods.size() >= 32768)
+						break;
+					hMods.resize(std::min<size_t>(32768, static_cast<size_t>((cbNeeded / sizeof(HMODULE)) + 64)));
+				}
+
+				if (enumOk)
 				{
-					WCHAR szModName[MAX_PATH];
-
-					if (GetModuleFileNameExW(hProcess, hMods[j], szModName,
-						sizeof(szModName) / sizeof(WCHAR)))
+					bool isModulePresent = false;
+					const DWORD modCount = std::min<DWORD>(cbNeeded / sizeof(HMODULE), static_cast<DWORD>(hMods.size()));
+					for (DWORD j = 0; j < modCount; j++)
 					{
+						WCHAR szModName[MAX_PATH];
 
-						PathStripPathW(szModName);
-						//::WideCharToMultiByte(CP_ACP, 0, szModName, -1, debug_buf_module, 255, NULL, NULL);
-						//DEBUG_HIGH_LEVEL << Q_FUNC_INFO << debug_buf_process << "has module" << debug_buf_module;
+						if (GetModuleFileNameExW(hProcess, hMods[j], szModName,
+							sizeof(szModName) / sizeof(WCHAR)))
+						{
+							PathStripPathW(szModName);
 
-						for (unsigned k = 0; k < withoutModuleCount; k++) {
-							if (wcsicmp(szModName, withoutModule[k]) == 0) {
-								goto nextProcess;
+							for (unsigned k = 0; k < withoutModuleCount; k++) {
+								if (wcsicmp(szModName, withoutModule[k]) == 0) {
+									goto nextProcess;
+								}
 							}
-						}
 
-						for (unsigned k = 0; k < withModuleCount; k++) {
-							if (wcsicmp(szModName, withModule[k]) == 0) {
-								isModulePresent = true;
-								break;
+							for (unsigned k = 0; k < withModuleCount; k++) {
+								if (wcsicmp(szModName, withModule[k]) == 0) {
+									isModulePresent = true;
+									break;
+								}
 							}
 						}
 					}
-				}
-				if (isModulePresent) {
-					if (requireWindow) {
-						HWND wnd = find_main_window(aProcesses[i]);
-						if (wnd) {
-							int w = GetSystemMetrics(SM_CXSCREEN);
-							int h = GetSystemMetrics(SM_CYSCREEN);
-							RECT rcWindow;
-							GetWindowRect(wnd, &rcWindow);
-							if ((w == (rcWindow.right - rcWindow.left)) &&
-								(h == (rcWindow.bottom - rcWindow.top))) {
+					if (isModulePresent) {
+						if (requireWindow) {
+							HWND wnd = find_main_window(aProcesses[i]);
+							if (wnd) {
+								int w = GetSystemMetrics(SM_CXSCREEN);
+								int h = GetSystemMetrics(SM_CYSCREEN);
+								RECT rcWindow;
+								GetWindowRect(wnd, &rcWindow);
+								if ((w == (rcWindow.right - rcWindow.left)) &&
+									(h == (rcWindow.bottom - rcWindow.top))) {
 
-								DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and fullscreen window";
-								processes->append(aProcesses[i]);
+									DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and fullscreen window";
+									processes->append(aProcesses[i]);
+								} else {
+									DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and non-fullscreen window";
+								}
 							} else {
-								DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and non-fullscreen window";
+								DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and no window";
 							}
-						} else {
-							DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and no window";
+						}
+						else {
+							DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module";
+							processes->append(aProcesses[i]);
 						}
 					}
-					else {
-						DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module";
-						processes->append(aProcesses[i]);
-					}
-
+				} else {
+					DEBUG_HIGH_LEVEL << Q_FUNC_INFO << debug_buf_process << "module enum failed:" << GetLastError();
 				}
-
-			} else {
-				DEBUG_HIGH_LEVEL << Q_FUNC_INFO << debug_buf_process << "module enum failed:" << GetLastError();
 			}
 		nextProcess:
 			// Release the handle to the process.
@@ -334,11 +347,7 @@ PSECURITY_DESCRIPTOR BuildHookObjectSD(DWORD interactiveUserAccessMask, bool hig
 	const QString hexMask = QStringLiteral("0x%1").arg(static_cast<quint32>(interactiveUserAccessMask), 8, 16, QLatin1Char('0'));
 
 	QString sddl = QStringLiteral("D:P(A;;GA;;;SY)(A;;GA;;;BA)");
-	if (!isAdmin) {
-		sddl += QStringLiteral("(A;;GA;;;%1)").arg(currentSid);
-	} else {
-		sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, currentSid);
-	}
+	sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, currentSid);
 
 	if (!shellSid.isEmpty() && shellSid.compare(currentSid, Qt::CaseInsensitive) != 0) {
 		sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, shellSid);

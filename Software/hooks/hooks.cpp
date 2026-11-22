@@ -19,8 +19,10 @@ HANDLE g_syncRunMutex;
 
 
 void writeBlankFrame() {
-	DWORD errorcode;
-	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(gIpcContext->m_hMutex, 0))) {
+	if (!gIpcContext || !gIpcContext->m_hMutex || !gIpcContext->m_pMemDesc)
+		return;
+	const DWORD errorcode = WaitForSingleObject(gIpcContext->m_hMutex, 0);
+	if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 		gIpcContext->m_pMemDesc->frameId = HOOKSGRABBER_BLANK_FRAME_ID;
 		gIpcContext->m_pMemDesc->width = 0;
 		gIpcContext->m_pMemDesc->height = 0;
@@ -125,38 +127,50 @@ HOOKSDLL_API BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD fdwReason, LPVOID lp
 	} else if (fdwReason == DLL_PROCESS_DETACH) {
 		if (gLog != NULL) {
 			gLog->reportLogInfo(L"detaching dll...");
-			if (WAIT_OBJECT_0 == WaitForSingleObject(g_syncRunMutex, INFINITE)) {
-				if (D3D9FrameGrabber::hasInstance() && D3D9FrameGrabber::getInstance()->isHooksInstalled()) {
-					gLog->reportLogInfo(L"removing d3d9hooks");
-					D3D9FrameGrabber::getInstance()->removeHooks();
+		}
+		if (g_syncRunMutex != NULL) {
+			const DWORD waitRc = WaitForSingleObject(g_syncRunMutex, INFINITE);
+			if (waitRc == WAIT_OBJECT_0 || waitRc == WAIT_ABANDONED) {
+				if (D3D9FrameGrabber::hasInstance()) {
+					if (D3D9FrameGrabber::getInstance()->isHooksInstalled()) {
+						if (gLog) gLog->reportLogInfo(L"removing d3d9hooks");
+						D3D9FrameGrabber::getInstance()->removeHooks();
+					}
 					delete D3D9FrameGrabber::getInstance();
 				}
-				if (DxgiFrameGrabber::hasInstance() && DxgiFrameGrabber::getInstance()->isHooksInstalled()) {
-					gLog->reportLogInfo(L"removing dxgihooks");
-					DxgiFrameGrabber::getInstance()->removeHooks();
+				if (DxgiFrameGrabber::hasInstance()) {
+					if (DxgiFrameGrabber::getInstance()->isHooksInstalled()) {
+						if (gLog) gLog->reportLogInfo(L"removing dxgihooks");
+						DxgiFrameGrabber::getInstance()->removeHooks();
+					}
 					delete DxgiFrameGrabber::getInstance();
 				}
 
-				gLog->reportLogInfo(L"clearing shared memory");
+				if (gLog) gLog->reportLogInfo(L"clearing shared memory");
 				writeBlankFrame();
 
-				gLog->reportLogInfo(L"clearing IPC context");
-				if (gIpcContext) delete gIpcContext;
+				if (gIpcContext) {
+					delete gIpcContext;
+					gIpcContext = NULL;
+				}
 
-				gLog->reportLogInfo(L"releasing syncRunMutex");
 				ReleaseMutex(g_syncRunMutex);
-			} else {
+			} else if (gLog) {
 				gLog->reportLogError(L"couldn't lock syncRunMutex");
 			}
 
-			gLog->reportLogInfo(L"close syncRunMutex");
 			CloseHandle(g_syncRunMutex);
+			g_syncRunMutex = NULL;
+		} else if (gIpcContext) {
+			delete gIpcContext;
+			gIpcContext = NULL;
+		}
 
+		if (gLog != NULL) {
 			gLog->reportLogInfo(L"close log");
 			gLog->closeLog();
 			gLog = NULL;
 		}
-
 	}
 
 	return TRUE;

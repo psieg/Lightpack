@@ -167,8 +167,8 @@ HRESULT WINAPI D3D9Present(IDirect3DDevice9 *pDev, CONST RECT* pSourceRect,CONST
 	Logger *logger = d3d9FrameGrabber->m_logger;
 	d3d9FrameGrabber->m_frameCount++;
 
-	DWORD errorcode;
-	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(d3d9FrameGrabber->m_syncRunMutex, 0))) {
+	DWORD errorcode = WaitForSingleObject(d3d9FrameGrabber->m_syncRunMutex, 0);
+	if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 		IPCContext *ipcContext = d3d9FrameGrabber->m_ipcContext;
 		logger->reportLogDebug(L"D3D9Present");
 		HRESULT hRes;
@@ -196,8 +196,8 @@ HRESULT WINAPI D3D9Present(IDirect3DDevice9 *pDev, CONST RECT* pSourceRect,CONST
 				goto endMap;
 			}
 
-			DWORD errorcode;
-			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+			errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0);
+			if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 				const size_t rowBytes = static_cast<size_t>(width) * 4;
 				ipcContext->m_pMemDesc->width = width;
 				ipcContext->m_pMemDesc->height = height;
@@ -359,8 +359,8 @@ HRESULT WINAPI D3D9SCPresent(IDirect3DSwapChain9 *pSc, CONST RECT* pSourceRect,C
 	Logger *logger = d3d9FrameGrabber->m_logger;
 	d3d9FrameGrabber->m_frameCount++;
 
-	DWORD errorcode;
-	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(d3d9FrameGrabber->m_syncRunMutex, 0))) {
+	DWORD errorcode = WaitForSingleObject(d3d9FrameGrabber->m_syncRunMutex, 0);
+	if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 		IPCContext *ipcContext = d3d9FrameGrabber->m_ipcContext;
 		logger->reportLogDebug(L"D3D9SCPresent");
 		HRESULT hRes;
@@ -387,7 +387,8 @@ HRESULT WINAPI D3D9SCPresent(IDirect3DSwapChain9 *pSc, CONST RECT* pSourceRect,C
 				goto endMap;
 			}
 
-			if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+			errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0);
+			if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 				const size_t rowBytes = static_cast<size_t>(width) * 4;
 				ipcContext->m_pMemDesc->width = width;
 				ipcContext->m_pMemDesc->height = height;

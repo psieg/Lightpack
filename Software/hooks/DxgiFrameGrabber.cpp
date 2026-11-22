@@ -187,8 +187,8 @@ bool DxgiFrameGrabber::D3D10Map() {
 		return true;
 	}
 
-	DWORD errorcode;
-	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+	DWORD errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0);
+	if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 		const size_t rowBytes = static_cast<size_t>(m_mapWidth) * 4;
 		ipcContext->m_pMemDesc->width = m_mapWidth;
 		ipcContext->m_pMemDesc->height = m_mapHeight;
@@ -299,8 +299,8 @@ bool DxgiFrameGrabber::D3D11Map() {
 		return true;
 	}
 
-	DWORD errorcode;
-	if (WAIT_OBJECT_0 == (errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0))) {
+	DWORD errorcode = WaitForSingleObject(ipcContext->m_hMutex, 0);
+	if (errorcode == WAIT_OBJECT_0 || errorcode == WAIT_ABANDONED) {
 		const size_t rowBytes = static_cast<size_t>(m_mapWidth) * 4;
 		ipcContext->m_pMemDesc->width = m_mapWidth;
 		ipcContext->m_pMemDesc->height = m_mapHeight;
@@ -351,7 +351,8 @@ HRESULT WINAPI DXGIPresent(IDXGISwapChain * sc, UINT b, UINT c) {
 
 	Logger *logger = dxgiFrameGrabber->m_logger;
 
-	if (WAIT_OBJECT_0 == WaitForSingleObject(dxgiFrameGrabber->m_syncRunMutex, 0)) {
+	const DWORD syncWait = WaitForSingleObject(dxgiFrameGrabber->m_syncRunMutex, 0);
+	if (syncWait == WAIT_OBJECT_0 || syncWait == WAIT_ABANDONED) {
 
 		DXGI_SWAP_CHAIN_DESC desc;
 		sc->GetDesc(&desc);
