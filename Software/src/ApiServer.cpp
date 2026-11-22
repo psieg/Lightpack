@@ -341,8 +341,8 @@ bool ApiServer::isCrossProtocolLine(const QByteArray &line)
 
 	for (const char *prefix : prefixes)
 	{
-		const qsizetype len = static_cast<qsizetype>(qstrlen(prefix));
-		if (line.size() >= len && qstrnicmp(line.constData(), prefix, len) == 0)
+		const int len = static_cast<int>(qstrlen(prefix));
+		if (line.size() >= len && qstrnicmp(line.constData(), prefix, static_cast<uint>(len)) == 0)
 			return true;
 	}
 	if (line.contains(" HTTP/1.") || line.contains(" HTTP/2"))
@@ -359,9 +359,9 @@ bool ApiServer::constantTimeKeyEquals(const QByteArray &candidate, const QString
 		return false;
 
 	volatile unsigned char diff = (candidate.size() == expectedBytes.size()) ? 0 : 1;
-	for (qsizetype i = 0; i < candidateHash.size(); ++i)
+	for (int i = 0; i < candidateHash.size(); ++i)
 	{
-		diff |= static_cast<unsigned char>(candidateHash[i]) ^ static_cast<unsigned char>(expectedHash[i]);
+		diff |= static_cast<unsigned char>(candidateHash.at(i)) ^ static_cast<unsigned char>(expectedHash.at(i));
 	}
 	return diff == 0;
 }
@@ -1178,7 +1178,11 @@ void ApiServer::clientProcessCommands()
 				API_DEBUG_OUT << QString(cmdBuffer);
 				int countleds = lightpack->GetCountLeds();
 				QList<QRect> rectLeds;
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
 				QStringList leds = QString::fromUtf8(cmdBuffer).split(QLatin1Char(';'), Qt::SkipEmptyParts);
+#else
+				QStringList leds = QString::fromUtf8(cmdBuffer).split(QLatin1Char(';'), QString::SkipEmptyParts);
+#endif
 				bool parseOk = (countleds > 0 && leds.size() <= countleds);
 				for (int i = 0; parseOk && i < leds.size(); ++i)
 				{

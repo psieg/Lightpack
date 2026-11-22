@@ -27,6 +27,7 @@
 #include "GrabWidget.hpp"
 #include "GrabberBase.hpp"
 #include "src/debug.h"
+#include <algorithm>
 #include <cmath>
 #include <QScreen>
 
