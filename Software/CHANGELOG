@@ -13,6 +13,19 @@ _/_/_/_/  _/    _/_/_/  _/    _/      _/_/  _/_/_/      _/_/_/    _/_/_/  _/    
 #    Software changelog
 ===================================================================================
 
+Version 5.11.2.32
+---------------
+November 22, 2026
+
+* Upgrade Windows, Linux, and macOS builds to Qt 6 (#571, #652)
+* Fix Qt 6 multi-monitor/high-DPI coordinate mapping and automatically migrate Qt 5 profiles (#644)
+* Improve LED device error recovery, multi-Lightpack handling, and sleep/wake lifecycle (#475, #569, #646)
+* Security hardening for API server, DX hooks/IPC, plugins, DLL loading, and auto-updater (#648, #649, #650, #651)
+* Switch Windows TLS to native Schannel and UpdateElevate to Windows CNG (#651)
+* Add AVX-512 grabber acceleration (#603)
+* Add Polish and Simplified Chinese translations (#516, #521)
+* Fix Linux Flatpak desktop integration and packaging (#542)
+
 Version 5.11.2.31
 ---------------
 January 8, 2022
