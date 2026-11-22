@@ -202,7 +202,7 @@ bool TwinPeaksSoundVisualizer::visualize(const float* const fftData, const size_
 		else if (FadeOutSpeed > 0 && (colors[idxA] > 0 || colors[idxB] > 0)) { // fade out old peaks
 			QColor oldColor(std::max(colors[idxA], colors[idxB])); // both colors are either the same or one is 0, so max() is good enough here
 			const double denomIdx = (idxA > 0) ? static_cast<double>(idxA) : 1.0;
-			const int luminosity = std::min(std::max(oldColor.lightness() - FadeOutSpeed * ((thresholdLed > 0 ? thresholdLed : 1) / denomIdx)* m_speedCoef, 255.0), 0.0);
+			const int luminosity = static_cast<int>(std::min(std::max(oldColor.lightness() - FadeOutSpeed * ((thresholdLed > 0 ? thresholdLed : 1) / denomIdx)* m_speedCoef, 0.0), 255.0));
 			oldColor.setHsl(oldColor.hue(), oldColor.saturation(), luminosity);
 			color = oldColor.rgb();
 		}

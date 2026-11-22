@@ -186,28 +186,28 @@ void GrabberBase::grab()
 			// Convert coordinates from "Main" desktop coord-system to capture-monitor coord-system
 			QRect preparedRect = clippedRect.translated(-monitorRect.x(), -monitorRect.y());
 
-			// grabbed screen is rotated => rotate the widget
+			// grabbed screen is rotated => rotate the widget (inclusive max index is dimension - 1)
 			if (grabbedScreen->rotation != 0) {
 				if (grabbedScreen->rotation % 4 == 1) { // rotated 90
 					preparedRect.setCoords(
-						monitorRect.height() - preparedRect.bottom(),
+						monitorRect.height() - 1 - preparedRect.bottom(),
 						preparedRect.left(),
-						monitorRect.height() - preparedRect.top(),
+						monitorRect.height() - 1 - preparedRect.top(),
 						preparedRect.right()
 					);
 				} else if (grabbedScreen->rotation % 4 == 2) { // rotated 180
 					preparedRect.setCoords(
-						monitorRect.width() - preparedRect.right(),
-						monitorRect.height() - preparedRect.bottom(),
-						monitorRect.width() - preparedRect.left(),
-						monitorRect.height() - preparedRect.top()
+						monitorRect.width() - 1 - preparedRect.right(),
+						monitorRect.height() - 1 - preparedRect.bottom(),
+						monitorRect.width() - 1 - preparedRect.left(),
+						monitorRect.height() - 1 - preparedRect.top()
 					);
 				} else if (grabbedScreen->rotation % 4 == 3) { // rotated 270
 					preparedRect.setCoords(
 						preparedRect.top(),
-						monitorRect.width() - preparedRect.right(),
+						monitorRect.width() - 1 - preparedRect.right(),
 						preparedRect.bottom(),
-						monitorRect.width() - preparedRect.left()
+						monitorRect.width() - 1 - preparedRect.left()
 					);
 				}
 			}
@@ -221,7 +221,17 @@ void GrabberBase::grab()
 					std::floor(grabbedScreen->scale * preparedRect.bottom())
 				);
 
-			if( !preparedRect.isValid() ){
+			const int bytesPerPixel = 4;
+			const size_t effectivePitch = grabbedScreen->bytesPerRow > 0
+				? grabbedScreen->bytesPerRow
+				: static_cast<size_t>((std::max)(0, grabbedScreen->screenInfo.rect.width())) * bytesPerPixel;
+			if (effectivePitch >= static_cast<size_t>(bytesPerPixel) && grabbedScreen->imgDataSize >= effectivePitch) {
+				const int maxBufWidth = static_cast<int>(effectivePitch / bytesPerPixel);
+				const int maxBufHeight = static_cast<int>(grabbedScreen->imgDataSize / effectivePitch);
+				preparedRect = preparedRect.intersected(QRect(0, 0, maxBufWidth, maxBufHeight));
+			}
+
+			if( !preparedRect.isValid() || !grabbedScreen->imgData || effectivePitch < static_cast<size_t>(bytesPerPixel) ){
 				qWarning() << Q_FUNC_INFO << " preparedRect is not valid:" << Debug::toString(preparedRect);
 				// width and height can't be negative
 
@@ -229,11 +239,9 @@ void GrabberBase::grab()
 				continue;
 			}
 
-			const int bytesPerPixel = 4;
-			Q_ASSERT(grabbedScreen->imgData);
 			QRgb avgColor = Grab::Calculations::calculateAvgColor(
 				grabbedScreen->imgData, grabbedScreen->imgFormat,
-				grabbedScreen->bytesPerRow > 0 ? grabbedScreen->bytesPerRow : grabbedScreen->screenInfo.rect.width() * bytesPerPixel,
+				effectivePitch,
 				preparedRect);
 			_context->grabResult->append(avgColor);
 		}

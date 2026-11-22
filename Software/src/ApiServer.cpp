@@ -25,6 +25,7 @@
  */
 
 #include <QtNetwork>
+#include <QCryptographicHash>
 #include <stdlib.h>
 
 #include "ApiServer.hpp"
@@ -253,14 +254,25 @@ void ApiServer::apiServerSettingsChanged()
 
 void ApiServer::updateApiKey(const QString &key)
 {
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << key;
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << (key.isEmpty() ? "empty" : "<redacted>");
 
 	m_apiAuthKey = key;
+	m_isAuthEnabled = !key.isEmpty();
 
-	if (key.isEmpty())
-		m_isAuthEnabled = false;
-	else
-		m_isAuthEnabled = true;
+	for (auto it = m_clients.begin(); it != m_clients.end(); ++it)
+	{
+		if (m_isAuthEnabled)
+		{
+			it.value().isAuthorized = false;
+			if (lightpack && lightpack->CheckLock(it.value().sessionKey) == 1)
+				lightpack->UnLock(it.value().sessionKey);
+		}
+		else
+		{
+			it.value().isAuthorized = true;
+			it.value().failedAuthCount = 0;
+		}
+	}
 }
 
 void ApiServer::incomingConnection(qintptr socketDescriptor)
@@ -285,8 +297,11 @@ void ApiServer::incomingConnection(qintptr socketDescriptor)
 	ClientInfo cs;
 	cs.isAuthorized = !m_isAuthEnabled;
 	cs.unknownCmdCount = 0;
-	// set default sessionkey (disable lock priority)
-	cs.sessionKey = QStringLiteral("API%1%2").arg(lightpack ? lightpack->GetSessionKey(QStringLiteral("API")) : QStringLiteral("Lock"), QString::number(m_clients.count()));
+	cs.failedAuthCount = 0;
+	// Monotonically increasing session key prevents session-key reuse across connect/disconnect cycles
+	cs.sessionKey = QStringLiteral("API%1%2").arg(
+		lightpack ? lightpack->GetSessionKey(QStringLiteral("API")) : QStringLiteral("Lock"),
+		QString::number(++m_nextClientId));
 
 	m_clients.insert(client, cs);
 
@@ -333,6 +348,22 @@ bool ApiServer::isCrossProtocolLine(const QByteArray &line)
 	if (line.contains(" HTTP/1.") || line.contains(" HTTP/2"))
 		return true;
 	return false;
+}
+
+bool ApiServer::constantTimeKeyEquals(const QByteArray &candidate, const QString &expected)
+{
+	const QByteArray expectedBytes = expected.toUtf8();
+	const QByteArray candidateHash = QCryptographicHash::hash(candidate, QCryptographicHash::Sha256);
+	const QByteArray expectedHash = QCryptographicHash::hash(expectedBytes, QCryptographicHash::Sha256);
+	if (candidateHash.size() != expectedHash.size() || candidateHash.isEmpty())
+		return false;
+
+	volatile unsigned char diff = (candidate.size() == expectedBytes.size()) ? 0 : 1;
+	for (qsizetype i = 0; i < candidateHash.size(); ++i)
+	{
+		diff |= static_cast<unsigned char>(candidateHash[i]) ^ static_cast<unsigned char>(expectedHash[i]);
+	}
+	return diff == 0;
 }
 
 void ApiServer::clientDisconnected()
@@ -416,31 +447,42 @@ void ApiServer::clientProcessCommands()
 		else if (cmdBuffer.startsWith(CmdApiKey))
 		{
 			API_DEBUG_OUT << CmdApiKey;
-			m_clients[client].unknownCmdCount = 0;
 
 			if (m_isAuthEnabled)
 			{
 				cmdBuffer.remove(0, cmdBuffer.indexOf(':') + 1);
-				API_DEBUG_OUT << QString(cmdBuffer);
 
-				if (cmdBuffer == m_apiAuthKey)
+				if (constantTimeKeyEquals(cmdBuffer, m_apiAuthKey))
 				{
 					API_DEBUG_OUT << CmdApiKey << "OK";
 
 					m_clients[client].isAuthorized = true;
+					m_clients[client].failedAuthCount = 0;
+					m_clients[client].unknownCmdCount = 0;
 
 					result = CmdApiKeyResult_Ok;
 				} else {
-					API_DEBUG_OUT << CmdApiKey << "Api key is not valid:" << QString(cmdBuffer);
+					API_DEBUG_OUT << CmdApiKey << "Api key is not valid";
 
 					m_clients[client].isAuthorized = false;
+					if (lightpack && lightpack->CheckLock(sessionKey) == 1)
+						lightpack->UnLock(sessionKey);
 
 					result = CmdApiKeyResult_Fail;
+					if (++m_clients[client].failedAuthCount >= MaxFailedAuthAttempts)
+					{
+						writeData(client, result);
+						client->flush();
+						qWarning() << Q_FUNC_INFO << "Too many failed API key attempts, disconnecting client";
+						abortClient(client);
+						return;
+					}
 				}
 			}
 			else
 			{
 				API_DEBUG_OUT << CmdApiKey << "Authorization is disabled, return ok;";
+				m_clients[client].unknownCmdCount = 0;
 				result = CmdApiKeyResult_Ok;
 			}
 
@@ -784,7 +826,9 @@ void ApiServer::clientProcessCommands()
 
 					while (m_isTaskSetColorDone == false && m_timer.hasExpired(SignalWaitTimeoutMs) == false)
 					{
-						QApplication::processEvents(QEventLoop::WaitForMoreEvents, SignalWaitTimeoutMs);
+						QApplication::processEvents(
+							QEventLoop::ExcludeSocketNotifiers | QEventLoop::ExcludeUserInputEvents | QEventLoop::WaitForMoreEvents,
+							SignalWaitTimeoutMs);
 					}
 
 					if (m_isTaskSetColorDone)
@@ -802,6 +846,7 @@ void ApiServer::clientProcessCommands()
 						qWarning() << Q_FUNC_INFO << "Timeout waiting taskIsSuccess() signal from m_apiSetColorTask";
 					}
 				} else {
+					result = CmdSetResult_Busy;
 					qWarning() << Q_FUNC_INFO << "Task setcolor is not completed (you should increase the delay to not skip commands), skip setcolor.";
 				}
 			}
@@ -969,17 +1014,17 @@ void ApiServer::clientProcessCommands()
 						r = colorMin.at(0).toInt(&ok);
 						if (!ok || r < 0 || r > 255) goto parsefail;
 						g = colorMin.at(1).toInt(&ok);
-						if (!ok || r < 0 || r > 255) goto parsefail;
+						if (!ok || g < 0 || g > 255) goto parsefail;
 						b = colorMin.at(2).toInt(&ok);
-						if (!ok || r < 0 || r > 255) goto parsefail;
+						if (!ok || b < 0 || b > 255) goto parsefail;
 						QColor min = QColor(r, g, b);
 
 						r = colorMax.at(0).toInt(&ok);
 						if (!ok || r < 0 || r > 255) goto parsefail;
 						g = colorMax.at(1).toInt(&ok);
-						if (!ok || r < 0 || r > 255) goto parsefail;
+						if (!ok || g < 0 || g > 255) goto parsefail;
 						b = colorMax.at(2).toInt(&ok);
-						if (!ok || r < 0 || r > 255) goto parsefail;
+						if (!ok || b < 0 || b > 255) goto parsefail;
 						QColor max = QColor(r, g, b);
 
 
@@ -1133,35 +1178,45 @@ void ApiServer::clientProcessCommands()
 				API_DEBUG_OUT << QString(cmdBuffer);
 				int countleds = lightpack->GetCountLeds();
 				QList<QRect> rectLeds;
-				QStringList leds = ((QString)cmdBuffer).split(';');
-				for (int i = 0; i < leds.size(); ++i)
+				QStringList leds = QString::fromUtf8(cmdBuffer).split(QLatin1Char(';'), Qt::SkipEmptyParts);
+				bool parseOk = (countleds > 0 && leds.size() <= countleds);
+				for (int i = 0; parseOk && i < leds.size(); ++i)
 				{
-					bool ok;
-					QString led = leds.at(i);
-					if (!led.isEmpty())
+					const QString &led = leds.at(i);
+					const int dashIdx = led.indexOf(QLatin1Char('-'));
+					if (dashIdx <= 0)
 					{
-						qDebug() << "led:" << led;
-						int num=0,x=0,y=0,w=0, h=0;
-						if (led.indexOf('-')>0)
-						{
-								num= led.split('-')[0].toInt(&ok);
-								if (ok)
-								{
-									QStringList xywh = led.split('-')[1].split(',');
-									if (xywh.count()>0) x = xywh[0].toInt(&ok);
-									if (xywh.count()>1) y = xywh[1].toInt(&ok);
-									if (xywh.count()>2) w = xywh[2].toInt(&ok);
-									if (xywh.count()>3) h = xywh[3].toInt(&ok);
-								}
-								if ((ok)&&(num>0)&&(num<countleds+1))
-								{
-									rectLeds << QRect(x,y,w,h);
-								}
-						}
+						parseOk = false;
+						break;
 					}
+					bool okNum = false, okX = false, okY = false, okW = false, okH = false;
+					const int num = led.left(dashIdx).toInt(&okNum);
+					const QStringList xywh = led.mid(dashIdx + 1).split(QLatin1Char(','));
+					if (!okNum || num <= 0 || num > countleds || xywh.count() != 4)
+					{
+						parseOk = false;
+						break;
+					}
+					const int x = xywh[0].toInt(&okX);
+					const int y = xywh[1].toInt(&okY);
+					const int w = xywh[2].toInt(&okW);
+					const int h = xywh[3].toInt(&okH);
+					if (!okX || !okY || !okW || !okH || w < 0 || h < 0)
+					{
+						parseOk = false;
+						break;
+					}
+					rectLeds << QRect(x, y, w, h);
 				}
-				lightpack->SetLeds(sessionKey,rectLeds);
-				result = CmdSetResult_Ok;
+				if (parseOk && !rectLeds.isEmpty())
+				{
+					lightpack->SetLeds(sessionKey, rectLeds);
+					result = CmdSetResult_Ok;
+				}
+				else
+				{
+					result = CmdSetResult_Error;
+				}
 			}
 			else if (m_lockedClient == 0)
 			{

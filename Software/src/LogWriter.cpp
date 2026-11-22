@@ -1,5 +1,14 @@
 #include <QtCore>
 #include <iostream>
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 #include "LightpackApplication.hpp"
 #include "Settings.hpp"
@@ -7,6 +16,26 @@
 #include "LogWriter.hpp"
 
 using namespace std;
+
+namespace {
+bool isLogPathReparseOrSymlink(const QString& rawPath)
+{
+	if (rawPath.isEmpty())
+		return false;
+	QFileInfo fi(rawPath);
+	if (fi.isSymLink())
+		return true;
+#ifdef Q_OS_WIN
+	QString nativePath = QDir::toNativeSeparators(QDir::cleanPath(rawPath));
+	while (nativePath.length() > 3 && nativePath.endsWith(QLatin1Char('\\')))
+		nativePath.chop(1);
+	const DWORD attrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(nativePath.utf16()));
+	if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+		return true;
+#endif
+	return false;
+}
+} // namespace
 
 
 
@@ -37,6 +66,10 @@ int LogWriter::initEnabled(const QString& logsDirPath)
 		std::cerr << "Failed to rotate old log files." << std::endl;
 
 	const QString logFilePath = logsDirPath + QStringLiteral("/Prismatik.0.log");
+	if (isLogPathReparseOrSymlink(logFilePath)) {
+		std::cerr << "Refusing to open symlink/reparse log file: '" << logFilePath.toStdString() << "'. Exit." << std::endl;
+		return LightpackApplication::OpenLogsFail_ErrorCode;
+	}
 	std::unique_ptr<QFile> logFile = std::make_unique<QFile>(logFilePath);
 	if (logFile.get()->open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
 		QMutexLocker locker(&m_mutex);
@@ -103,6 +136,12 @@ QDir LogWriter::getLogsDir() {
 }
 
 int LogWriter::setLogsDir(const QString& logsDirPath, const bool create) {
+	if (isLogPathReparseOrSymlink(logsDirPath) ||
+		isLogPathReparseOrSymlink(QFileInfo(QDir::cleanPath(logsDirPath)).absolutePath()))
+	{
+		std::cerr << "Refusing symlink/reparse logs directory: '" << logsDirPath.toStdString() << "'." << std::endl;
+		return LightpackApplication::LogsDirecroryCreationFail_ErrorCode;
+	}
 	m_logsDir.setPath(logsDirPath);
 	if (create && m_logsDir.exists() == false) {
 		std::cout << "mkdir " << logsDirPath.toStdString() << std::endl;
@@ -110,6 +149,9 @@ int LogWriter::setLogsDir(const QString& logsDirPath, const bool create) {
 			std::cerr << "Failed mkdir '" << logsDirPath.toStdString() << "' for logs. Exit." << std::endl;
 			return LightpackApplication::LogsDirecroryCreationFail_ErrorCode;
 		}
+	}
+	if (isLogPathReparseOrSymlink(logsDirPath)) {
+		return LightpackApplication::LogsDirecroryCreationFail_ErrorCode;
 	}
 	return LightpackApplication::OK_ErrorCode;
 }
@@ -131,30 +173,37 @@ void LogWriter::messageHandler(QtMsgType type, const QMessageLogContext &ctx, co
 
 bool LogWriter::rotateLogFiles(const QDir& logsDir)
 {
-	if (!logsDir.exists())
+	if (!logsDir.exists() || isLogPathReparseOrSymlink(logsDir.absolutePath()))
 		return false;
 
-	QStringList logFiles = logsDir.entryList(QStringList(QStringLiteral("Prismatik.?.log")), QDir::Files, QDir::Name);
+	QStringList logFiles = logsDir.entryList(QStringList(QStringLiteral("Prismatik.?.log")), QDir::Files | QDir::NoSymLinks, QDir::Name);
 	// Delete all old files except last |StoreLogsLaunches| files.
 	for (int i = logFiles.count() - 1; i >= StoreLogsLaunches - 1; i--)
 	{
-		if (!QFile::remove(logsDir.absoluteFilePath(logFiles.at(i)))) {
+		const QString target = logsDir.absoluteFilePath(logFiles.at(i));
+		if (isLogPathReparseOrSymlink(target) || !QFile::remove(target)) {
 			qCritical() << "Failed to remove log: " << logFiles.at(i);
 			return false;
 		}
 	}
 
-	logFiles = logsDir.entryList(QStringList(QStringList(QStringLiteral("Prismatik.?.log"))), QDir::Files, QDir::Name);
+	logFiles = logsDir.entryList(QStringList(QStringList(QStringLiteral("Prismatik.?.log"))), QDir::Files | QDir::NoSymLinks, QDir::Name);
 	Q_ASSERT(logFiles.count() <= StoreLogsLaunches);
 	// Move Prismatik.[N].log file to Prismatik.[N+1].log
 	for (int i = logFiles.count() - 1; i >= 0; i--)
 	{
 		const QStringList& splitted = logFiles[i].split('.');
-		Q_ASSERT(splitted.length() == 3);
+		if (splitted.length() != 3)
+			continue;
 
 		const int num = splitted.at(1).toInt();
 		const QString from = logsDir.absoluteFilePath(logFiles.at(i));
 		const QString to = logsDir.absoluteFilePath(QStringLiteral("Prismatik.") + QString::number(num + 1) + QStringLiteral(".log"));
+
+		if (isLogPathReparseOrSymlink(from) || isLogPathReparseOrSymlink(to)) {
+			qCritical() << "Refusing to rotate symlink/reparse log file";
+			return false;
+		}
 
 		if (QFile::exists(to))
 			QFile::remove(to);

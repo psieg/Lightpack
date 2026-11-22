@@ -757,6 +757,73 @@ void LightpackApiTest::testCase_HttpCrossProtocolRejected()
 	QVERIFY(writeCommandWithCheck(&verifySock, ApiServer::CmdGetStatusAPI, ApiServer::CmdResultStatusAPI_Idle));
 }
 
+void LightpackApiTest::testCase_SessionKeyNoCollisionOnReconnect()
+{
+	// Connect Client 0 (m_socket is already connected) and Client 1
+	QTcpSocket client1;
+	client1.connectToHost("127.0.0.1", 3636);
+	QVERIFY(client1.waitForConnected(5000));
+	QVERIFY(checkVersion(&client1));
+
+	// Client 1 acquires lock
+	QVERIFY(lock(&client1));
+
+	// Client 0 disconnects so active client count drops by 1
+	m_socket->disconnectFromHost();
+	if (m_socket->state() != QAbstractSocket::UnconnectedState)
+		m_socket->waitForDisconnected(1000);
+	QTest::qWait(50);
+
+	// Client 2 connects — must NOT inherit Client 1's session key or lock
+	QTcpSocket client2;
+	client2.connectToHost("127.0.0.1", 3636);
+	QVERIFY(client2.waitForConnected(5000));
+	QVERIFY(checkVersion(&client2));
+
+	QVERIFY(writeCommandWithCheck(&client2, ApiServer::CmdUnlock, ApiServer::CmdResultUnlock_NotLocked));
+	QVERIFY(writeCommandWithCheck(&client2, ApiServer::CmdLock, ApiServer::CmdResultLock_Busy));
+
+	// Client 2 disconnects — Client 1 must STILL hold its lock
+	client2.disconnectFromHost();
+	if (client2.state() != QAbstractSocket::UnconnectedState)
+		client2.waitForDisconnected(1000);
+	QTest::qWait(50);
+
+	QVERIFY(unlock(&client1));
+}
+
+void LightpackApiTest::testCase_KeyRotationRevokesAndRateLimitsAuth()
+{
+	QVERIFY(lock(m_socket));
+
+	// Rotating to a non-empty API key must immediately revoke authorization and release active lock on open sockets
+	QMetaObject::invokeMethod(m_apiServer, "updateApiKey", Qt::BlockingQueuedConnection, Q_ARG(QString, QStringLiteral("RotatedSecretKey123")));
+
+	QVERIFY(writeCommandWithCheck(m_socket, ApiServer::CmdGetStatus, ApiServer::CmdApiCheck_AuthRequired));
+
+	// Verify lock was released by connecting a second client and authenticating with the new key
+	QTcpSocket authedSock;
+	authedSock.connectToHost("127.0.0.1", 3636);
+	QVERIFY(authedSock.waitForConnected(5000));
+	QVERIFY(checkVersion(&authedSock));
+	QVERIFY(writeCommandWithCheck(&authedSock, "apikey:RotatedSecretKey123", ApiServer::CmdApiKeyResult_Ok));
+	QVERIFY(lock(&authedSock));
+	QVERIFY(unlock(&authedSock));
+	authedSock.disconnectFromHost();
+
+	// 5 consecutive failed apikey attempts must disconnect the brute-forcing client
+	for (int attempt = 1; attempt <= 4; ++attempt)
+	{
+		QVERIFY(writeCommandWithCheck(m_socket, "apikey:wrong-guess", ApiServer::CmdApiKeyResult_Fail));
+	}
+	writeCommand(m_socket, "apikey:wrong-guess");
+	m_socket->flush();
+	QVERIFY(m_socket->state() == QAbstractSocket::UnconnectedState || m_socket->waitForDisconnected(2000));
+
+	// Restore empty API key for subsequent cleanup
+	QMetaObject::invokeMethod(m_apiServer, "updateApiKey", Qt::BlockingQueuedConnection, Q_ARG(QString, QString()));
+}
+
 // Private help functions
 
 QByteArray LightpackApiTest::readResult(QTcpSocket * socket)

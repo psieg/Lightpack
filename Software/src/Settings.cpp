@@ -51,6 +51,24 @@
 
 namespace
 {
+bool isPathReparseOrSymlink(const QString &rawPath)
+{
+	if (rawPath.isEmpty())
+		return false;
+	QFileInfo fi(rawPath);
+	if (fi.isSymLink())
+		return true;
+#ifdef Q_OS_WIN
+	QString nativePath = QDir::toNativeSeparators(QDir::cleanPath(rawPath));
+	while (nativePath.length() > 3 && nativePath.endsWith(QLatin1Char('\\')))
+		nativePath.chop(1);
+	const DWORD attrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(nativePath.utf16()));
+	if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+		return true;
+#endif
+	return false;
+}
+
 inline const WBAdjustment getLedAdjustment(int ledIndex)
 {
 	using namespace SettingsScope;
@@ -316,6 +334,12 @@ bool Settings::Initialize( const QString & applicationDirPath, bool isDebugLevel
 	if(!m_configDirPath.isEmpty())
 		return true;
 
+	if (isPathReparseOrSymlink(applicationDirPath))
+	{
+		qCritical() << Q_FUNC_INFO << "Refusing config directory that is a symlink/reparse point:" << applicationDirPath;
+		return false;
+	}
+
 	m_configDirPath = applicationDirPath;
 
 	// Append to the end of dir path '/'
@@ -323,6 +347,12 @@ bool Settings::Initialize( const QString & applicationDirPath, bool isDebugLevel
 		m_configDirPath += QStringLiteral("/");
 
 	QString mainConfigPath = getMainConfigPath();
+	if (isPathReparseOrSymlink(mainConfigPath) || isPathReparseOrSymlink(getProfilesPath()))
+	{
+		qCritical() << Q_FUNC_INFO << "Refusing main.conf or Profiles path that is a symlink/reparse point";
+		m_configDirPath.clear();
+		return false;
+	}
 	bool settingsWasPresent = QFileInfo::exists(mainConfigPath);
 
 	m_mainConfig = new QSettings(mainConfigPath, QSettings::IniFormat);
@@ -522,8 +552,17 @@ bool Settings::isValidProfileName(const QString & profileName)
 
 	if (!m_configDirPath.isEmpty())
 	{
+		if (isPathReparseOrSymlink(m_configDirPath) || isPathReparseOrSymlink(getProfilesPath()))
+		{
+			return false;
+		}
 		const QString profilesRoot = QDir::cleanPath(QDir(getProfilesPath()).absolutePath());
-		const QString candidateFile = QDir::cleanPath(QFileInfo(QStringLiteral("%1%2.ini").arg(getProfilesPath(), profileName)).absoluteFilePath());
+		const QString rawCandidate = QStringLiteral("%1%2.ini").arg(getProfilesPath(), profileName);
+		if (isPathReparseOrSymlink(rawCandidate))
+		{
+			return false;
+		}
+		const QString candidateFile = QDir::cleanPath(QFileInfo(rawCandidate).absoluteFilePath());
 		const QString candidateParent = QDir::cleanPath(QFileInfo(candidateFile).absolutePath());
 		if (candidateParent.compare(profilesRoot,
 #ifdef Q_OS_WIN
@@ -642,6 +681,11 @@ void Settings::removeCurrentProfile()
 		return;
 	}
 
+	if (isPathReparseOrSymlink(m_currentProfile->fileName()))
+	{
+		qWarning() << Q_FUNC_INFO << "Refusing to remove symlink/reparse profile:" << m_currentProfile->fileName();
+		return;
+	}
 	bool result = QFile::remove( m_currentProfile->fileName() );
 
 	if (result == false)

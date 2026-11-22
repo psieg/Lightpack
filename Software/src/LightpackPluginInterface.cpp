@@ -455,13 +455,16 @@ bool LightpackPluginInterface::SetLeds(const QString& sessionKey, QList<QRect> l
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
-	int num =0;
-		foreach(QRect rectLed, leds){
+	const int maxLeds = Settings::getNumberOfLeds(Settings::getConnectedDevice());
+	int num = 0;
+	foreach(QRect rectLed, leds) {
+		if (num >= maxLeds)
+			break;
 		Settings::setLedPosition(num, QPoint(rectLed.x(),rectLed.y()));
 		Settings::setLedSize(num,QSize(rectLed.width(),rectLed.height()));
-		++ num;
-		}
-	emit updateCountLeds(leds.count());
+		++num;
+	}
+	emit updateCountLeds(num);
 	QString profile = Settings::getCurrentProfileName();
 	emit updateProfile(profile);
 	return true;
