@@ -25,9 +25,26 @@
 
 #include "calculations.hpp"
 #include <stdint.h>
-#ifdef __SSE4_1__
+#if defined(Q_OS_MACOS)
+#include <sys/sysctl.h>
+#endif
+#if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
+#define PRISMATIK_X86_SIMD 1
 #include <immintrin.h>
-#endif // ifdef __SSE4_1__
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define PRISMATIK_TARGET_SSE41 __attribute__((target("sse4.1")))
+#define PRISMATIK_TARGET_AVX2 __attribute__((target("avx2")))
+#define PRISMATIK_TARGET_AVX512 __attribute__((target("avx512f,avx512bw")))
+#else
+#define PRISMATIK_TARGET_SSE41
+#define PRISMATIK_TARGET_AVX2
+#define PRISMATIK_TARGET_AVX512
+#endif
 
 #define PIXEL_FORMAT_ARGB 2,1,0 // channel positions in a 4 byte color
 #define PIXEL_FORMAT_ABGR 0,1,2
@@ -89,10 +106,9 @@ auto accumulateABGR = accumulateBuffer<PIXEL_FORMAT_ABGR>;
 auto accumulateRGBA = accumulateBuffer<PIXEL_FORMAT_RGBA>;
 auto accumulateBGRA = accumulateBuffer<PIXEL_FORMAT_BGRA>;
 
-#if defined(__SSE4_1__) || defined(__AVX2__) || (defined(__AVX512F__) && defined(__AVX512BW__))
-#ifdef __SSE4_1__
+#ifdef PRISMATIK_X86_SIMD
 	template<uint8_t offsetR, uint8_t offsetG, uint8_t offsetB>
-	static ColorValue accumulateBuffer128(
+	static PRISMATIK_TARGET_SSE41 ColorValue accumulateBuffer128(
 		const int * const buffer,
 		const size_t pitch,
 		const QRect& rect) {
@@ -164,11 +180,9 @@ auto accumulateBGRA = accumulateBuffer<PIXEL_FORMAT_BGRA>;
 		color.b = ((color.b + _mm_extract_epi32(horizontalSum128, offsetB)) / count) & 0xff;
 		return color;
 	};
-#endif // ifdef __SSE4_1__
 
-#ifdef __AVX2__
 	template<uint8_t offsetR, uint8_t offsetG, uint8_t offsetB>
-	static ColorValue accumulateBuffer256(
+	static PRISMATIK_TARGET_AVX2 ColorValue accumulateBuffer256(
 		const int * const buffer,
 		const size_t pitch,
 		const QRect& rect) {
@@ -244,10 +258,9 @@ auto accumulateBGRA = accumulateBuffer<PIXEL_FORMAT_BGRA>;
 		color.b = (_mm_extract_epi32(horizontalSum128, offsetB) / count) & 0xff;
 		return color;
 	};
-#endif // ifdef __AVX2__
-#if defined(__AVX512F__) && defined(__AVX512BW__)
+
 	template<uint8_t offsetR, uint8_t offsetG, uint8_t offsetB>
-	static ColorValue accumulateBuffer512(
+	static PRISMATIK_TARGET_AVX512 ColorValue accumulateBuffer512(
 		const int * const buffer,
 		const size_t pitch,
 		const QRect& rect) {
@@ -284,14 +297,21 @@ auto accumulateBGRA = accumulateBuffer<PIXEL_FORMAT_BGRA>;
 		constexpr const int pixelsPerLoad = pixelsPerStep * stepsPerLoad;
 		const size_t softlimit = rect.width() / pixelsPerLoad;
 		const size_t delta = (size_t)rect.width() - (softlimit * pixelsPerLoad);
-		const __mmask16 deltamask = 0xFFFF >> (16 - delta);
+		const __mmask16 deltamask = delta ? static_cast<__mmask16>(0xFFFFu >> (16 - delta)) : 0;
 		for (size_t currentY = 0; currentY < (size_t)rect.height(); ++currentY) {
-			for (size_t currentX = 0; currentX <= softlimit; ++currentX) {
-				const size_t index = pitch * (rect.y() + currentY) + rect.x() + currentX * pixelsPerLoad; // starting offset for lines
-				const __m512i vec8 = _mm512_maskz_loadu_epi32(currentX == softlimit ? deltamask : __mmask16(0xFFFF), &buffer[index]);
-				sum[offsetR] = _mm512_add_epi32(sum[offsetR], _mm512_shuffle_epi8(vec8, shuffleR));
-				sum[offsetG] = _mm512_add_epi32(sum[offsetG], _mm512_shuffle_epi8(vec8, shuffleG));
-				sum[offsetB] = _mm512_add_epi32(sum[offsetB], _mm512_shuffle_epi8(vec8, shuffleB));
+			for (size_t currentX = 0; currentX < softlimit; ++currentX) {
+				const size_t index = pitch * (rect.y() + currentY) + rect.x() + currentX * pixelsPerLoad;
+				const __m512i vec16 = _mm512_loadu_si512((const __m512i*)&buffer[index]);
+				sum[offsetR] = _mm512_add_epi32(sum[offsetR], _mm512_shuffle_epi8(vec16, shuffleR));
+				sum[offsetG] = _mm512_add_epi32(sum[offsetG], _mm512_shuffle_epi8(vec16, shuffleG));
+				sum[offsetB] = _mm512_add_epi32(sum[offsetB], _mm512_shuffle_epi8(vec16, shuffleB));
+			}
+			if (delta > 0) {
+				const size_t index = pitch * (rect.y() + currentY) + rect.x() + softlimit * pixelsPerLoad;
+				const __m512i vec16 = _mm512_maskz_loadu_epi32(deltamask, &buffer[index]);
+				sum[offsetR] = _mm512_add_epi32(sum[offsetR], _mm512_shuffle_epi8(vec16, shuffleR));
+				sum[offsetG] = _mm512_add_epi32(sum[offsetG], _mm512_shuffle_epi8(vec16, shuffleG));
+				sum[offsetB] = _mm512_add_epi32(sum[offsetB], _mm512_shuffle_epi8(vec16, shuffleB));
 			}
 		}
 		const size_t count = rect.height() * rect.width();
@@ -301,7 +321,6 @@ auto accumulateBGRA = accumulateBuffer<PIXEL_FORMAT_BGRA>;
 		color.b = (_mm512_reduce_add_epi32(sum[offsetB]) / count) & 0xff;
 		return color;
 	};
-#endif // ifdef __AVX512F__ && __AVX512BW__
 
 enum SIMDLevel {
 	None = 0,
@@ -311,7 +330,6 @@ enum SIMDLevel {
 };
 
 #if defined(Q_OS_MACOS)
-#include <sys/sysctl.h>
 // https://developer.apple.com/documentation/apple_silicon/about_the_rosetta_translation_environment?language=objc
 static uint32_t available_simd() {
 	uint32_t level = SIMDLevel::None;
@@ -338,7 +356,7 @@ static uint32_t available_simd() {
 	return level;
 }
 #else /* non-Intel compiler */
-void run_cpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd)
+static void run_cpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd)
 {
 #if defined(_MSC_VER)
 	__cpuidex((int*)abcd, eax, ecx);
@@ -356,45 +374,51 @@ void run_cpuid(uint32_t eax, uint32_t ecx, uint32_t* abcd)
 #endif // ifdef _MSC_VER
 }
 
-
+static uint64_t read_xcr0()
+{
 #if defined(_MSC_VER)
-# include <intrin.h>
-#endif // ifdef _MSC_VER
+	return _xgetbv(0);
+#else
+	uint32_t eax = 0, edx = 0;
+	__asm__ __volatile__ (".byte 0x0f, 0x01, 0xd0" : "=a"(eax), "=d"(edx) : "c"(0));
+	return (static_cast<uint64_t>(edx) << 32) | eax;
+#endif
+}
+
 static uint32_t available_simd() {
 	uint32_t abcd[4] = {0,0,0,0};
-
-	run_cpuid(1, 0, abcd);
-	uint32_t eax = 0x07;
-	uint32_t ecx = 0x00;
-#if defined(_MSC_VER)
-	__cpuidex((int*)abcd, eax, ecx);
-#else
-	uint32_t ebx = 0;
-	uint32_t edx = 0;
-# if defined( __i386__ ) && defined ( __PIC__ )
-	 /* in case of PIC under 32-bit EBX cannot be clobbered */
-	__asm__ ( "movl %%ebx, %%edi \n\t cpuid \n\t xchgl %%ebx, %%edi" : "=D" (ebx),
-# else
-	__asm__ ( "cpuid" : "+b" (ebx),
-# endif // ifdef __i386__ || __PIC__
-			  "+a" (eax), "+c" (ecx), "=d" (edx) );
-	abcd[0] = eax; abcd[1] = ebx; abcd[2] = ecx; abcd[3] = edx;
-#endif // ifdef _MSC_VER
 	uint32_t level = SIMDLevel::None;
-	run_cpuid(7, 0, abcd);
-	// CPUID.(EAX=07H, ECX=0H):EBX.AVX512F [bit 16]==1
-	// CPUID.(EAX=07H, ECX=0H):EBX.AVX512BW[bit 30]==1
-	if ((abcd[1] & (1 << 16)) && (abcd[1] & (1 << 30)))
-		level |= SIMDLevel::AVX512;
 
-	// CPUID.(EAX=07H, ECX=0H):EBX.AVX2[bit 5]==1
-	if ((abcd[1] & (1 << 5)))
-		level |= SIMDLevel::AVX2;
+	run_cpuid(0, 0, abcd);
+	const uint32_t maxBasicLeaf = abcd[0];
+	if (maxBasicLeaf < 1)
+		return level;
 
-	// CPUID.(EAX=01H, ECX=0H):ECX.SSE4_1[bit 19]==1
+	// CPUID.(EAX=01H, ECX=0H):
+	//   ECX.SSE4_1 [bit 19]==1
+	//   ECX.OSXSAVE[bit 27]==1
+	//   ECX.AVX    [bit 28]==1
 	run_cpuid(1, 0, abcd);
-	if ((abcd[2] & (1 << 19)))
+	if (abcd[2] & (1u << 19))
 		level |= SIMDLevel::SSE4_1;
+
+	const bool hasOsXsave = (abcd[2] & (1u << 27)) != 0;
+	const bool hasAvxBit  = (abcd[2] & (1u << 28)) != 0;
+	const uint64_t xcr0   = hasOsXsave ? read_xcr0() : 0;
+	const bool osAvxEnabled    = hasOsXsave && hasAvxBit && ((xcr0 & 0x6u) == 0x6u);
+	const bool osAvx512Enabled = osAvxEnabled && ((xcr0 & 0xE6u) == 0xE6u);
+
+	if (maxBasicLeaf >= 7) {
+		run_cpuid(7, 0, abcd);
+		// CPUID.(EAX=07H, ECX=0H):EBX.AVX2[bit 5]==1
+		if (osAvxEnabled && (abcd[1] & (1u << 5)))
+			level |= SIMDLevel::AVX2;
+
+		// CPUID.(EAX=07H, ECX=0H):EBX.AVX512F [bit 16]==1
+		// CPUID.(EAX=07H, ECX=0H):EBX.AVX512BW[bit 30]==1
+		if (osAvx512Enabled && (abcd[1] & (1u << 16)) && (abcd[1] & (1u << 30)))
+			level |= SIMDLevel::AVX512;
+	}
 
 	return level;
 }
@@ -403,6 +427,7 @@ static uint32_t available_simd() {
 /*
 	accumulateBuffer128 requires SSE4.1
 	accumulateBuffer256 requires AVX2
+	accumulateBuffer512 requires AVX512F + AVX512BW
 
 	instruction availability:
 	Steam Hardware & Software Survey (March 2020)
@@ -419,34 +444,28 @@ static uint32_t available_simd() {
 struct simdupgrade {
 	simdupgrade() {
 		const uint32_t level = available_simd();
-		#ifdef __SSE4_1__
 		if (level & SIMDLevel::SSE4_1) {
 			accumulateARGB = accumulateBuffer128<PIXEL_FORMAT_ARGB>;
 			accumulateABGR = accumulateBuffer128<PIXEL_FORMAT_ABGR>;
 			accumulateRGBA = accumulateBuffer128<PIXEL_FORMAT_RGBA>;
 			accumulateBGRA = accumulateBuffer128<PIXEL_FORMAT_BGRA>;
 		}
-		#endif // ifdef __SSE4_1__
-		#ifdef __AVX2__
 		if (level & SIMDLevel::AVX2) {
 			accumulateARGB = accumulateBuffer256<PIXEL_FORMAT_ARGB>;
 			accumulateABGR = accumulateBuffer256<PIXEL_FORMAT_ABGR>;
 			accumulateRGBA = accumulateBuffer256<PIXEL_FORMAT_RGBA>;
 			accumulateBGRA = accumulateBuffer256<PIXEL_FORMAT_BGRA>;
 		}
-		#endif // ifdef __AVX2__
-		#if defined(__AVX512F__) && defined(__AVX512BW__)
 		if (level & SIMDLevel::AVX512) {
 			accumulateARGB = accumulateBuffer512<PIXEL_FORMAT_ARGB>;
 			accumulateABGR = accumulateBuffer512<PIXEL_FORMAT_ABGR>;
 			accumulateRGBA = accumulateBuffer512<PIXEL_FORMAT_RGBA>;
 			accumulateBGRA = accumulateBuffer512<PIXEL_FORMAT_BGRA>;
 		}
-		#endif // ifdef __AVX512F__ && __AVX512BW__
 	}
 };
 simdupgrade avxup;
-#endif // ifdef __SSE4_1__ || __AVX2__ || (__AVX512F__ && __AVX512BW__)
+#endif // ifdef PRISMATIK_X86_SIMD
 } // namespace
 
 namespace Grab {
