@@ -42,16 +42,14 @@
 #include "qtlocalpeer.h"
 #include <QCoreApplication>
 #include <QDataStream>
+#include <QElapsedTimer>
 #include <QTime>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 #include <QRegularExpression>
 #endif
 
 #if defined(Q_OS_WIN)
-#include <QLibrary>
 #include <qt_windows.h>
-typedef BOOL(WINAPI*PProcessIdToSessionId)(DWORD,DWORD*);
-static PProcessIdToSessionId pProcessIdToSessionId = 0;
 #endif
 #if defined(Q_OS_UNIX)
 #include <sys/types.h>
@@ -98,13 +96,8 @@ QtLocalPeer::QtLocalPeer(QObject* parent, const QString &appId)
 					+ QLatin1Char('-') + QString::number(idNum, 16);
 
 #if defined(Q_OS_WIN)
-	if (!pProcessIdToSessionId) {
-		QLibrary lib("kernel32");
-		pProcessIdToSessionId = (PProcessIdToSessionId)lib.resolve("ProcessIdToSessionId");
-	}
-	if (pProcessIdToSessionId) {
-		DWORD sessionId = 0;
-		pProcessIdToSessionId(GetCurrentProcessId(), &sessionId);
+	DWORD sessionId = 0;
+	if (ProcessIdToSessionId(GetCurrentProcessId(), &sessionId)) {
 		socketName += QLatin1Char('-') + QString::number(sessionId, 16);
 	}
 #else
@@ -187,29 +180,49 @@ void QtLocalPeer::receiveConnection()
 	if (!socket)
 		return;
 
-	while (socket->bytesAvailable() < (int)sizeof(quint32))
-		socket->waitForReadyRead();
+	static constexpr qint64 kTotalTimeoutMs = 2000;
+	QElapsedTimer totalTimer;
+	totalTimer.start();
+
+	while (socket->bytesAvailable() < (int)sizeof(quint32)) {
+		const qint64 remMs = kTotalTimeoutMs - totalTimer.elapsed();
+		if (remMs <= 0 || !socket->waitForReadyRead(static_cast<int>(remMs))) {
+			delete socket;
+			return;
+		}
+	}
 	QDataStream ds(socket);
-	QByteArray uMsg;
-	quint32 remaining;
+	quint32 remaining = 0;
 	ds >> remaining;
-	uMsg.resize(remaining);
-	int got = 0;
-	char* uMsgBuf = uMsg.data();
-	do {
-		got = ds.readRawData(uMsgBuf, remaining);
-		remaining -= got;
-		uMsgBuf += got;
-	} while (remaining && got >= 0 && socket->waitForReadyRead(2000));
-	if (got < 0) {
-		qWarning("QtLocalPeer: Message reception failed %s", socket->errorString().toLatin1().constData());
+	if (remaining > 4096) {
+		qWarning("QtLocalPeer: Rejecting oversized IPC message (%u bytes)", remaining);
 		delete socket;
 		return;
 	}
+	QByteArray uMsg(static_cast<int>(remaining), '\0');
+	char* uMsgBuf = uMsg.data();
+	while (remaining > 0) {
+		if (socket->bytesAvailable() == 0) {
+			const qint64 remMs = kTotalTimeoutMs - totalTimer.elapsed();
+			if (remMs <= 0 || !socket->waitForReadyRead(static_cast<int>(remMs))) {
+				qWarning("QtLocalPeer: Message reception timed out (%u bytes remaining)", remaining);
+				delete socket;
+				return;
+			}
+		}
+		const int got = ds.readRawData(uMsgBuf, static_cast<int>(remaining));
+		if (got <= 0) {
+			qWarning("QtLocalPeer: Message reception failed %s", socket->errorString().toLatin1().constData());
+			delete socket;
+			return;
+		}
+		remaining -= static_cast<quint32>(got);
+		uMsgBuf += got;
+	}
 	QString message(QString::fromUtf8(uMsg));
 	socket->write(ack, qstrlen(ack));
-	socket->waitForBytesWritten(1000);
-	socket->waitForDisconnected(1000); // make sure client reads ack
+	socket->waitForBytesWritten(500);
+	socket->waitForDisconnected(500); // make sure client reads ack
 	delete socket;
 	emit messageReceived(message); //### (might take a long time to return)
 }

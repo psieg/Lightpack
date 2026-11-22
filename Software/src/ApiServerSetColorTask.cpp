@@ -94,7 +94,7 @@ void ApiServerSetColorTask::startParseSetColorTask(QByteArray buffer)
 
 		API_DEBUG_OUT << "lednumber-" << ledNumber << "buff-" << QString(buffer);
 
-		if (ledNumber <= 0 || ledNumber > m_numberOfLeds)
+		if (ledNumber <= 0 || ledNumber > m_numberOfLeds || ledNumber > m_colors.size())
 		{
 			API_DEBUG_OUT << "ledNumber is out of bounds:" << ledNumber;
 			isReadFail = true;
@@ -106,7 +106,7 @@ void ApiServerSetColorTask::startParseSetColorTask(QByteArray buffer)
 
 		// Read led red, green and blue colors to buffer buffRgb[]
 		int indexBuffer = 0;
-		int indexRgb = 0;		
+		int indexRgb = 0;
 		memset(buffRgb, 0, sizeof(buffRgb));
 
 		bool isDigitExpected = true;
@@ -125,9 +125,9 @@ void ApiServerSetColorTask::startParseSetColorTask(QByteArray buffer)
 					isReadFail = true;
 					goto end;
 				}
-				else if (isDigitExpected)
+				else if (isDigitExpected || indexRgb + 1 >= bSize)
 				{
-					API_DEBUG_OUT << "expected digit, buffer:" << QString(buffer) << indexBuffer << buffer[indexBuffer];
+					API_DEBUG_OUT << "unexpected or excess comma, buffer:" << QString(buffer) << indexBuffer << buffer[indexBuffer];
 					isReadFail = true;
 					goto end;
 				}
@@ -148,6 +148,13 @@ void ApiServerSetColorTask::startParseSetColorTask(QByteArray buffer)
 			}
 		}
 
+		if (indexRgb != bBlue || isDigitExpected)
+		{
+			API_DEBUG_OUT << "incomplete RGB triplet, indexRgb:" << indexRgb;
+			isReadFail = true;
+			goto end;
+		}
+
 		// Remove read colors
 		buffer.remove(0, indexBuffer);
 
@@ -157,7 +164,7 @@ void ApiServerSetColorTask::startParseSetColorTask(QByteArray buffer)
 		API_DEBUG_OUT << "result color:" << buffRgb[bRed] << buffRgb[bGreen] << buffRgb[bBlue]
 						<< "buffer:" << QString(buffer);
 
-		if (buffer[0] == ';')
+		if (!buffer.isEmpty() && buffer[0] == ';')
 		{
 			// Remove semicolon
 			buffer.remove(0, 1);
@@ -193,6 +200,11 @@ void ApiServerSetColorTask::reinitColorBuffers()
 void ApiServerSetColorTask::setApiDeviceNumberOfLeds(int value)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << value;
+
+	if (value < 0)
+		value = 0;
+	else if (value > MaximumNumberOfLeds::AbsoluteMaximum)
+		value = MaximumNumberOfLeds::AbsoluteMaximum;
 
 	m_numberOfLeds = value;
 

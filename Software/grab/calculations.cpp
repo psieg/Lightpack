@@ -452,6 +452,12 @@ simdupgrade avxup;
 namespace Grab {
 	namespace Calculations {
 		QRgb calculateAvgColor(const unsigned char * const buffer, BufferFormat bufferFormat, const size_t pitch, const QRect &rect) {
+			if (!buffer || pitch < bytesPerPixel ||
+				rect.x() < 0 || rect.y() < 0 ||
+				rect.width() <= 0 || rect.height() <= 0 ||
+				static_cast<size_t>(rect.x() + rect.width()) * bytesPerPixel > pitch) {
+				return qRgb(0, 0, 0);
+			}
 
 			ColorValue color;
 			switch(bufferFormat) {

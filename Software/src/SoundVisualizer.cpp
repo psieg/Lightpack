@@ -89,14 +89,24 @@ private:
 
 bool PrismatikSoundVisualizer::visualize(const float* const fftData, const size_t fftSize, QList<QRgb>& colors)
 {
+	if (!fftData || fftSize < 2 || colors.isEmpty())
+		return false;
+
+	while (m_peaks.size() < colors.size())
+		m_peaks << 0;
+
+	const size_t maxBin = fftSize - 1; // fftData is indexed at [1 + b0], so b0 must stay < maxBin
+	const double ledDenom = (colors.size() > 1) ? static_cast<double>(colors.size() - 1) : 1.0;
+
 	size_t b0 = 0;
 	bool changed = false;
 	for (int i = 0; i < colors.size(); i++)
 	{
 		float peak = 0;
-		size_t b1 = pow(2, i*9.0 / (colors.size() - 1)); // 9 was 10, but the last bucket rarely saw any action
-		if (b1 > fftSize - 1) b1 = fftSize - 1;
+		size_t b1 = static_cast<size_t>(pow(2, i * 9.0 / ledDenom)); // 9 was 10, but the last bucket rarely saw any action
+		if (b0 >= maxBin) b0 = maxBin - 1;
 		if (b1 <= b0) b1 = b0 + 1; // make sure it uses at least 1 FFT bin
+		if (b1 > maxBin) b1 = maxBin;
 		for (; b0 < b1; b0++)
 			if (peak < fftData[1 + b0]) peak = fftData[1 + b0];
 		int val = sqrt(peak) * /* 3 * */ SpecHeight - 4; // scale it (sqrt to make low values more visible)
@@ -106,7 +116,7 @@ bool PrismatikSoundVisualizer::visualize(const float* const fftData, const size_
 		if (m_frames % 5 == 0) m_peaks[i] -= 1;
 		if (m_peaks[i] < 0) m_peaks[i] = 0;
 		if (val > m_peaks[i]) m_peaks[i] = val;
-		if (val < m_peaks[i] - 5)
+		if (m_peaks[i] > 0 && val < m_peaks[i] - 5)
 			val = (val * SpecHeight) / m_peaks[i]; // scale val according to peak
 
 		QRgb color = 0;
@@ -144,13 +154,17 @@ private:
 
 bool TwinPeaksSoundVisualizer::visualize(const float* const fftData, const size_t fftSize, QList<QRgb>& colors)
 {
+	if (!fftData || fftSize == 0 || colors.isEmpty())
+		return false;
+
 	bool changed = false;
 	const unsigned int middleLed = std::floor(colors.size() / 2);
 
 	// most sensitive Hz range for humans
 	// this assumes 44100Hz sample rate
-	const unsigned int optimalHzMin = 1950 / (44100 / 2 / (unsigned int)fftSize); // 2kHz
-	const unsigned int optimalHzMax = 5050 / (44100 / 2 / (unsigned int)fftSize); // 5kHz
+	const unsigned int binHz = std::max(1u, static_cast<unsigned int>((44100 / 2) / fftSize));
+	const unsigned int optimalHzMin = 1950 / binHz; // 2kHz
+	const unsigned int optimalHzMax = 5050 / binHz; // 5kHz
 
 	float currentPeak = 0.0f;
 	for (size_t i = 0; i < fftSize; ++i) {
@@ -187,7 +201,8 @@ bool TwinPeaksSoundVisualizer::visualize(const float* const fftData, const size_
 		}
 		else if (FadeOutSpeed > 0 && (colors[idxA] > 0 || colors[idxB] > 0)) { // fade out old peaks
 			QColor oldColor(std::max(colors[idxA], colors[idxB])); // both colors are either the same or one is 0, so max() is good enough here
-			const int luminosity = std::min(std::max(oldColor.lightness() - FadeOutSpeed * ((thresholdLed > 0 ? thresholdLed : 1) / (double)idxA)* m_speedCoef, 255.0), 0.0);
+			const double denomIdx = (idxA > 0) ? static_cast<double>(idxA) : 1.0;
+			const int luminosity = static_cast<int>(std::min(std::max(oldColor.lightness() - FadeOutSpeed * ((thresholdLed > 0 ? thresholdLed : 1) / denomIdx)* m_speedCoef, 0.0), 255.0));
 			oldColor.setHsl(oldColor.hue(), oldColor.saturation(), luminosity);
 			color = oldColor.rgb();
 		}

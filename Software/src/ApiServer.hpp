@@ -41,8 +41,10 @@
 
 struct ClientInfo
 {
-	bool isAuthorized;
+	bool isAuthorized = false;
 	QString sessionKey;
+	int unknownCmdCount = 0;
+	int failedAuthCount = 0;
 	// Think about it. May be we need to save gamma,
 	// smooth and brightness and after success lock send
 	// this values to device?
@@ -219,11 +221,21 @@ private slots:
 	void taskSetColorIsSuccess(bool isSuccess);
 
 private:
-	LightpackPluginInterface *lightpack;
+	static constexpr int MaxClients = 64;
+	static constexpr qint64 MaxReadBufferSize = 65536;
+	static constexpr qint64 MaxCommandLength = 32768;
+	static constexpr int MaxConsecutiveUnknownCommands = 5;
+	static constexpr int MaxFailedAuthAttempts = 5;
+
+	LightpackPluginInterface *lightpack = nullptr;
+	quint64 m_nextClientId = 0;
 	void initPrivateVariables();
 	void initApiSetColorTask();
 	void startListening();
 	void stopListening();
+	void abortClient(QTcpSocket *client);
+	static bool isCrossProtocolLine(const QByteArray &line);
+	static bool constantTimeKeyEquals(const QByteArray &candidate, const QString &expected);
 	void writeData(QTcpSocket* client, const QString & data);
 	QString formatHelp(const QString & cmd);
 	QString formatHelp(const QString & cmd, const QString & description);

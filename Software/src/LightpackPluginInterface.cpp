@@ -404,6 +404,7 @@ bool LightpackPluginInterface::SetProfile(const QString& sessionKey, const QStri
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
+	if (!Settings::isValidProfileName(profile)) return false;
 		QStringList profiles = Settings::findAllProfiles();
 		if (profiles.contains(profile))
 		{
@@ -454,13 +455,16 @@ bool LightpackPluginInterface::SetLeds(const QString& sessionKey, QList<QRect> l
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
-	int num =0;
-		foreach(QRect rectLed, leds){
+	const int maxLeds = Settings::getNumberOfLeds(Settings::getConnectedDevice());
+	int num = 0;
+	foreach(QRect rectLed, leds) {
+		if (num >= maxLeds)
+			break;
 		Settings::setLedPosition(num, QPoint(rectLed.x(),rectLed.y()));
 		Settings::setLedSize(num,QSize(rectLed.width(),rectLed.height()));
-		++ num;
-		}
-	emit updateCountLeds(leds.count());
+		++num;
+	}
+	emit updateCountLeds(num);
 	QString profile = Settings::getCurrentProfileName();
 	emit updateProfile(profile);
 	return true;
@@ -470,6 +474,7 @@ bool LightpackPluginInterface::NewProfile(const QString& sessionKey, const QStri
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
+	if (!Settings::isValidProfileName(profile)) return false;
 
 		Settings::loadOrCreateProfile(profile);
 		DEBUG_LOW_LEVEL << Q_FUNC_INFO << "OK:" << profile;
@@ -482,6 +487,7 @@ bool LightpackPluginInterface::DeleteProfile(const QString& sessionKey, const QS
 {
 	if (lockSessionKeys.isEmpty()) return false;
 	if (lockSessionKeys[0]!=sessionKey) return false;
+	if (!Settings::isValidProfileName(profile)) return false;
 	QStringList profiles = Settings::findAllProfiles();
 	if (profiles.contains(profile))
 	{

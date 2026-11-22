@@ -660,6 +660,9 @@ void LightpackApplication::startApiServer()
 	connect(settings(), &Settings::lightpackNumberOfLedsChanged,	m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
 	connect(settings(), &Settings::adalightNumberOfLedsChanged,	m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
 	connect(settings(), &Settings::ardulightNumberOfLedsChanged,	m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
+	connect(settings(), &Settings::drgbNumberOfLedsChanged,		m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
+	connect(settings(), &Settings::dnrgbNumberOfLedsChanged,	m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
+	connect(settings(), &Settings::warlsNumberOfLedsChanged,	m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
 	connect(settings(), &Settings::virtualNumberOfLedsChanged,	m_apiServer, &ApiServer::updateApiDeviceNumberOfLeds);
 
 	if (!m_noGui)

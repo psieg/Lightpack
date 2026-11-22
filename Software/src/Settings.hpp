@@ -71,6 +71,7 @@ public:
 	static bool isPresent(const QString & applicationDirPath);
 
 	static QStringList findAllProfiles();
+	static bool isValidProfileName(const QString & profileName);
 	static void loadOrCreateProfile(const QString & configName);
 	static void renameCurrentProfile(const QString & configName);
 	static void removeCurrentProfile();
