@@ -32,7 +32,14 @@ LIBS += -L../lib -lprismatik-math -lgrab
 
 win32 {
     CONFIG(msvc):DEFINES += _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE
-    LIBS += -ladvapi32 -lsetupapi -luser32
+    LIBS += -ladvapi32 -lsetupapi -luser32 -lshlwapi
+    contains(DEFINES,NIGHTLIGHT_SUPPORT) {
+        contains(QMAKE_TARGET.arch, x86_64) {
+            Release:LIBS += -L$${NIGHTLIGHT_DIR}/Release/
+            Debug:LIBS += -L$${NIGHTLIGHT_DIR}/Debug/
+            LIBS += -lNightLightLibrary
+        }
+    }
 }
 
 INCLUDEPATH += . \
@@ -77,7 +84,8 @@ HEADERS += \
     ../src/TimeEvaluations.hpp \
     LightpackCommandLineParserTest.hpp \
     SettingsMigrationTest.hpp \
-    LedDeviceManagerTest.hpp
+    LedDeviceManagerTest.hpp \
+    PluginHardeningTest.hpp
 
 SOURCES += \
     ../src/ApiServerSetColorTask.cpp \

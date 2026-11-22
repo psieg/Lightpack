@@ -29,6 +29,10 @@ public:
 	void setPriority(int priority);
 	int getPriority() const;
 
+#if defined(Q_OS_WIN)
+	static bool launchProgramUnelevatedDetached(const QString &program, const QStringList &arguments, const QString &workingDir = QString());
+#endif
+
 
 signals:
 	void pluginStateChanged(QProcess::ProcessState newState);
@@ -40,6 +44,9 @@ public slots:
 	void finished(int exitCode, QProcess::ExitStatus exitStatus);
 	void readyReadStandardError();
 	void readyReadStandardOutput();
+#if defined(Q_OS_WIN)
+	void onUnelevatedProcessFinished();
+#endif
 
 private:
 
@@ -53,5 +60,10 @@ private:
 	QStringList _arguments;
 	QString _pathPlugin;
 	QProcess *process;
+#if defined(Q_OS_WIN)
+	void *m_unelevatedProcessHandle = nullptr;
+	class QWinEventNotifier *m_processExitNotifier = nullptr;
+	QProcess::ProcessState m_unelevatedState = QProcess::NotRunning;
+#endif
 
 };

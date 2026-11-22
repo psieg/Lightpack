@@ -64,7 +64,10 @@ LedDeviceAlienFx::LedDeviceAlienFx(QObject *parent) :
 
 	m_isInitialized = false;
 
-	m_hLfxLibrary = LoadLibrary(L"LightFX.dll");
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+	m_hLfxLibrary = LoadLibraryExW(L"LightFX.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 	if (m_hLfxLibrary)
 	{
 		lfxInitFunction = (LFX2INITIALIZE)GetProcAddress(m_hLfxLibrary, LFX_DLL_INITIALIZE);
@@ -79,7 +82,9 @@ LedDeviceAlienFx::LedDeviceAlienFx(QObject *parent) :
 		lfxGetLightDescriptionFunction = (LFX2GETLIGHTDESC)GetProcAddress(m_hLfxLibrary, LFX_DLL_GETLIGHTDESC);
 		lfxLightFunction = (LFX2LIGHT)GetProcAddress(m_hLfxLibrary, LFX_DLL_LIGHT);
 
-		LFX_RESULT result = lfxInitFunction();
+		const bool exportsResolved = lfxInitFunction && lfxReleaseFunction && lfxResetFunction &&
+			lfxUpdateFunction && lfxGetNumDevicesFunction && lfxGetNumLightsFunction && lfxSetLightColorFunction;
+		LFX_RESULT result = exportsResolved ? lfxInitFunction() : LFX_FAILURE;
 		if (result == LFX_SUCCESS)
 		{
 			m_isInitialized = true;

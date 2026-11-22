@@ -9,6 +9,7 @@
 #include "LightpackCommandLineParserTest.hpp"
 #include "SettingsMigrationTest.hpp"
 #include "LedDeviceManagerTest.hpp"
+#include "PluginHardeningTest.hpp"
 #include "debug.h"
 
 #include <iostream>
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
 	tests.append(new AppVersionTest());
 	tests.append(new LightpackCommandLineParserTest());
 	tests.append(new LedDeviceManagerTest());
+	tests.append(new PluginHardeningTest());
 
 	for(int i=0; i < tests.size(); i++) {
 		if (QTest::qExec(tests[i], argc, argv)) {
