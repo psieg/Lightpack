@@ -641,15 +641,15 @@ void SettingsWindow::onOpenLogs_clicked()
 	const QString logsPath = QDir::toNativeSeparators(LogWriter::getLogsDir().absolutePath());
 #ifdef Q_OS_WIN
 	const DWORD attrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(logsPath.utf16()));
-	if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
-		qWarning() << Q_FUNC_INFO << "Refusing to open missing or reparse-point logs directory:" << logsPath;
+	if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+		qWarning() << Q_FUNC_INFO << "Logs directory does not exist:" << logsPath;
 		return;
 	}
 	if (WinUtils::IsUserAdmin()) {
 		wchar_t winDir[MAX_PATH] = {};
 		if (GetWindowsDirectoryW(winDir, MAX_PATH) > 0) {
 			const QString explorerExe = QString::fromWCharArray(winDir) + QStringLiteral("\\explorer.exe");
-			if (!Plugin::launchProgramUnelevatedDetached(explorerExe, QStringList() << logsPath, logsPath)) {
+			if (!Plugin::launchProgramUnelevatedDetached(explorerExe, QStringList() << logsPath, QString())) {
 				qWarning() << Q_FUNC_INFO << "Refused to launch elevated Explorer for logs directory";
 			}
 		}
@@ -1601,21 +1601,16 @@ void SettingsWindow::openFile(const QString &filePath)
 
 #ifdef Q_OS_WIN
 	const QString nativeFile = QDir::toNativeSeparators(QFileInfo(filePath).absoluteFilePath());
-	const QString nativeParent = QDir::toNativeSeparators(QFileInfo(nativeFile).absolutePath());
 	const DWORD fileAttrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(nativeFile.utf16()));
-	const DWORD dirAttrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(nativeParent.utf16()));
-	if (fileAttrs == INVALID_FILE_ATTRIBUTES || dirAttrs == INVALID_FILE_ATTRIBUTES ||
-		(fileAttrs & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0 ||
-		(dirAttrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
-	{
-		qWarning() << Q_FUNC_INFO << "Refusing to open missing or reparse-point file:" << nativeFile;
+	if (fileAttrs == INVALID_FILE_ATTRIBUTES || (fileAttrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+		qWarning() << Q_FUNC_INFO << "File does not exist or is a directory:" << nativeFile;
 		return;
 	}
 	if (WinUtils::IsUserAdmin()) {
 		wchar_t sysDir[MAX_PATH] = {};
 		if (GetSystemDirectoryW(sysDir, MAX_PATH) > 0) {
 			const QString notepadExe = QString::fromWCharArray(sysDir) + QStringLiteral("\\notepad.exe");
-			if (!Plugin::launchProgramUnelevatedDetached(notepadExe, QStringList() << nativeFile, nativeParent)) {
+			if (!Plugin::launchProgramUnelevatedDetached(notepadExe, QStringList() << nativeFile, QString())) {
 				qWarning() << Q_FUNC_INFO << "Refused to open file with elevated process";
 			}
 		}
