@@ -323,6 +323,17 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 		if (shellIsUnelevated) {
 			HANDLE hShellCreate = OpenProcess(PROCESS_CREATE_PROCESS, FALSE, shellPid);
 			if (hShellCreate) {
+				HANDLE hShellProcForToken = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shellPid);
+				HANDLE hShellToken = NULL;
+				LPVOID pEnv = NULL;
+				if (hShellProcForToken) {
+					if (OpenProcessToken(hShellProcForToken, TOKEN_QUERY | TOKEN_DUPLICATE, &hShellToken)) {
+						CreateEnvironmentBlock(&pEnv, hShellToken, FALSE);
+						CloseHandle(hShellToken);
+					}
+					CloseHandle(hShellProcForToken);
+				}
+
 				SIZE_T attrListSize = 0;
 				InitializeProcThreadAttributeList(NULL, 1, 0, &attrListSize);
 				QByteArray attrBuf(static_cast<int>(attrListSize), 0);
@@ -336,17 +347,23 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 						std::vector<wchar_t> mutableCmd(cmdLine.begin(), cmdLine.end());
 						mutableCmd.push_back(L'\0');
 
+						DWORD createFlags = EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP;
+						if (pEnv)
+							createFlags |= CREATE_UNICODE_ENVIRONMENT;
+
 						BOOL created = CreateProcessW(
 							appPathW.c_str(),
 							mutableCmd.data(),
 							NULL,
 							NULL,
 							FALSE,
-							EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
-							NULL,
+							createFlags,
+							pEnv,
 							workDirW.c_str(),
 							&siEx.StartupInfo,
 							&pi);
+						if (pEnv)
+							DestroyEnvironmentBlock(pEnv);
 						DeleteProcThreadAttributeList(pAttrList);
 						CloseHandle(hShellCreate);
 						if (created) {
@@ -355,10 +372,14 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 							return true;
 						}
 					} else {
+						if (pEnv)
+							DestroyEnvironmentBlock(pEnv);
 						DeleteProcThreadAttributeList(pAttrList);
 						CloseHandle(hShellCreate);
 					}
 				} else {
+					if (pEnv)
+						DestroyEnvironmentBlock(pEnv);
 					CloseHandle(hShellCreate);
 				}
 			}
@@ -453,11 +474,18 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 				CloseHandle(hSelfToken);
 			}
 
+			LPVOID pEnv = NULL;
+			CreateEnvironmentBlock(&pEnv, hReducedToken, FALSE);
+
 			STARTUPINFOW si = {};
 			si.cb = sizeof(si);
 			PROCESS_INFORMATION pi = {};
 			std::vector<wchar_t> mutableCmd(cmdLine.begin(), cmdLine.end());
 			mutableCmd.push_back(L'\0');
+
+			DWORD flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP;
+			if (pEnv)
+				flags |= CREATE_UNICODE_ENVIRONMENT;
 
 			BOOL created = CreateProcessAsUserW(
 				hReducedToken,
@@ -466,8 +494,8 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 				NULL,
 				NULL,
 				FALSE,
-				CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
-				NULL,
+				flags,
+				pEnv,
 				workDirW.c_str(),
 				&si,
 				&pi);
@@ -479,12 +507,14 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 					0,
 					appPathW.c_str(),
 					mutableCmd2.data(),
-					CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
-					NULL,
+					flags,
+					pEnv,
 					workDirW.c_str(),
 					&si,
 					&pi);
 			}
+			if (pEnv)
+				DestroyEnvironmentBlock(pEnv);
 			CloseHandle(hReducedToken);
 			SaferCloseLevel(hSafer);
 			if (created) {
