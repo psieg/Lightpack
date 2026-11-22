@@ -148,8 +148,11 @@ bool DDuplGrabber::init()
 {
 	m_state = Unavailable;
 
-	m_dxgiDll = LoadLibrary(L"dxgi.dll");
-	m_d3d11Dll = LoadLibrary(L"d3d11.dll");
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+	m_dxgiDll = LoadLibraryExW(L"dxgi.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	m_d3d11Dll = LoadLibraryExW(L"d3d11.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 	if (!m_dxgiDll || !m_d3d11Dll)
 		return false;
 

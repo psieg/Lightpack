@@ -89,9 +89,10 @@ Name: "{commonstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: 
 
 [Run]
 Filename: "{app}\UpdateElevate"; Parameters: "install"; Flags: runhidden
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 Filename: "https://github.com/psieg/Lightpack/wiki"; Description: "{cm:OpenWiki}"; Flags: postinstall unchecked shellexec skipifsilent runasoriginaluser
-Filename: "schtasks"; Parameters: "/create /f /RU Administrators /RL HIGHEST /SC onlogon /TN ""Prismatik with Admin Rights"" /TR ""{app}\{#MyAppExeName}"""; Tasks: adminstartuptask; Flags: runhidden skipifsilent
+Filename: "schtasks"; Parameters: "/create /f /RU Administrators /RL HIGHEST /SC onlogon /TN ""Prismatik with Admin Rights"" /TR ""\""{app}\{#MyAppExeName}\"""""; Tasks: adminstartuptask; Flags: runhidden
+Filename: "schtasks"; Parameters: "/delete /f /TN ""Prismatik with Admin Rights"""; Tasks: not adminstartuptask; Flags: runhidden
 
 [UninstallRun]
 Filename: "{app}\UpdateElevate"; Parameters: "uninstall"; Flags: runhidden

@@ -126,6 +126,16 @@ int main(int argc, char **argv)
 		DEBUG_LOW_LEVEL << "Latency critical activity is started";
 	}
 #elif defined Q_OS_WIN
+#ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
+#define LOAD_LIBRARY_SEARCH_APPLICATION_DIR 0x00000200
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+	// Remove current working directory and PATH from default DLL search order to prevent DLL sideloading.
+	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+	SetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
 	// Mutex used by InnoSetup to detect that app is runnning.
 	// http://www.jrsoftware.org/ishelp/index.php?topic=setup_appmutex
 	HANDLE appMutex = CreateMutexW(NULL, FALSE, L"LightpackAppMutex");

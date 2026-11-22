@@ -70,10 +70,14 @@ HWND GetFirstWindowOfProcess()
 	return (HWND)INVALID_HANDLE_VALUE;
 }
 
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+
 BOOL LoadD3DandDXGI()
 {
-	HMODULE dxgi = LoadLibrary(L"dxgi.dll");
-	HMODULE d3d10 = LoadLibrary(L"d3d10.dll");
+	HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	HMODULE d3d10 = LoadLibraryExW(L"d3d10.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 	if (!dxgi || !d3d10)
 		return false;
 
@@ -169,8 +173,12 @@ UINT GetDxgiPresentOffset(HWND hwnd) {
 typedef IDirect3D9 * (WINAPI *Direct3DCreate9Func)(UINT SDKVersion);
 UINT GetD3D9PresentOffset(HWND hWnd){
 	IDirect3D9 *pD3D = NULL;
-	HINSTANCE hD3d9 = LoadLibrary(L"d3d9.dll");
+	HINSTANCE hD3d9 = LoadLibraryExW(L"d3d9.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	if (!hD3d9)
+		return 0;
 	Direct3DCreate9Func createDev = reinterpret_cast<Direct3DCreate9Func>(GetProcAddress(hD3d9, "Direct3DCreate9"));
+	if (!createDev)
+		return 0;
 	pD3D = createDev(D3D_SDK_VERSION);
 	if ( !pD3D)
 	{
@@ -231,7 +239,7 @@ UINT GetD3D9PresentOffset(HWND hWnd){
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << buf;
 #endif
 
-		UINT presentFuncOffset = (presentFuncPtr - reinterpret_cast<UINT>(hD3d9));
+		UINT presentFuncOffset = static_cast<UINT>(presentFuncPtr - reinterpret_cast<uintptr_t>(hD3d9));
 
 #ifndef NO_QT
 		sprintf(buf, "presentFuncOffset=%x", presentFuncOffset);
@@ -248,8 +256,12 @@ UINT GetD3D9PresentOffset(HWND hWnd){
 
 UINT GetD3D9SCPresentOffset(HWND hWnd){
 	IDirect3D9 *pD3D = NULL;
-	HINSTANCE hD3d9 = LoadLibrary(L"d3d9.dll");
+	HINSTANCE hD3d9 = LoadLibraryExW(L"d3d9.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	if (!hD3d9)
+		return 0;
 	Direct3DCreate9Func createDev = reinterpret_cast<Direct3DCreate9Func>(GetProcAddress(hD3d9, "Direct3DCreate9"));
+	if (!createDev)
+		return 0;
 	pD3D = createDev(D3D_SDK_VERSION);
 	if ( !pD3D)
 	{
@@ -311,7 +323,7 @@ UINT GetD3D9SCPresentOffset(HWND hWnd){
 #endif
 
 		void *pD3d9 = reinterpret_cast<void *>(hD3d9);
-		UINT presentFuncOffset = (presentFuncPtr - reinterpret_cast<UINT>(pD3d9));
+		UINT presentFuncOffset = static_cast<UINT>(presentFuncPtr - reinterpret_cast<uintptr_t>(pD3d9));
 
 #ifndef NO_QT
 		sprintf(buf, "presentFuncOffset=%x", presentFuncOffset);
@@ -329,8 +341,12 @@ UINT GetD3D9SCPresentOffset(HWND hWnd){
 
 UINT GetD3D9ResetOffset(HWND hWnd){
 	IDirect3D9 *pD3D = NULL;
-	HINSTANCE hD3d9 = LoadLibrary(L"d3d9.dll");
+	HINSTANCE hD3d9 = LoadLibraryExW(L"d3d9.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+	if (!hD3d9)
+		return 0;
 	Direct3DCreate9Func createDev = reinterpret_cast<Direct3DCreate9Func>(GetProcAddress(hD3d9, "Direct3DCreate9"));
+	if (!createDev)
+		return 0;
 	pD3D = createDev(D3D_SDK_VERSION);
 	if (!pD3D)
 	{
@@ -391,7 +407,7 @@ UINT GetD3D9ResetOffset(HWND hWnd){
 		DEBUG_MID_LEVEL << Q_FUNC_INFO << buf;
 #endif
 
-		UINT resetFuncOffset = (resetFuncPtr - reinterpret_cast<UINT>(hD3d9));
+		UINT resetFuncOffset = static_cast<UINT>(resetFuncPtr - reinterpret_cast<uintptr_t>(hD3d9));
 
 #ifndef NO_QT
 		sprintf(buf, "resetFuncOffset=%x", resetFuncOffset);

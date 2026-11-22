@@ -129,6 +129,7 @@ bool QtLocalPeer::isClient()
 	if (!lockFile.lock(QtLP_Private::QtLockedFile::WriteLock, false))
 		return true;
 
+	server->setSocketOptions(QLocalServer::UserAccessOption);
 	bool res = server->listen(socketName);
 #if defined(Q_OS_UNIX) && (QT_VERSION >= QT_VERSION_CHECK(4,5,0))
 	// ### Workaround
