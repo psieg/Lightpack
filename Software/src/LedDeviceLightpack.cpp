@@ -51,7 +51,7 @@ LedDeviceLightpack::LedDeviceLightpack(QObject *parent) :
 	m_timerPingDevice = new QTimer(this);
 
 	connect(m_timerPingDevice, &QTimer::timeout, this, &LedDeviceLightpack::timerPingDeviceTimeout);
-	connect(this, &LedDeviceLightpack::ioDeviceSuccess, this, &LedDeviceLightpack::restartPingDevice);
+	connect(this, &LedDeviceLightpack::commandCompleted, this, &LedDeviceLightpack::restartPingDevice);
 	connect(this, &LedDeviceLightpack::openDeviceSuccess, this, &LedDeviceLightpack::restartPingDevice);
 
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "initialized";
@@ -74,14 +74,14 @@ void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
 #if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "thread id: " << this->thread()->currentThreadId();
 #endif
-	if (m_devices.size() == 0) {
-		emit commandCompleted(false);
+	if (m_devices.isEmpty()) {
+		ack(false);
 		return;
 	}
 
 	if (colors.count() > maxLedsCount()) {
 		qWarning() << Q_FUNC_INFO << "data size is greater than max leds count";
-		emit commandCompleted(false);
+		ack(false);
 		return;
 	}
 
@@ -122,7 +122,7 @@ void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
 		m_writeBuffer[buffIndex++] = (color.b & 0x000F);
 
 		if ((i+1) % kLedsPerDevice == 0 || i == m_colorsBuffer.size() - 1) {
-			if (m_devices.empty() || !writeBufferToDeviceWithCheck(CMD_UPDATE_LEDS, m_devices[(i+kLedsPerDevice)/kLedsPerDevice - 1])) {
+			if (m_devices.empty() || !writeBufferToDevice(CMD_UPDATE_LEDS, m_devices[(i+kLedsPerDevice)/kLedsPerDevice - 1])) {
 				ok = false;
 				break;
 			}
@@ -135,13 +135,11 @@ void LedDeviceLightpack::setColors(const QList<QRgb> & colors)
 
 
 	// WARNING: LedDeviceManager sends data only when the arrival of this signal
-	emit commandCompleted(ok);
+	ack(ok);
 }
 
 int LedDeviceLightpack::maxLedsCount()
 {
-	if (m_devices.size() == 0)
-		tryToReopenDevice();
 	return m_devices.size() * kLedsPerDevice;
 }
 void LedDeviceLightpack::switchOffLeds()
@@ -157,14 +155,17 @@ void LedDeviceLightpack::switchOffLeds()
 			m_colorsSaved[i] = 0;
 	}
 
-	m_timerPingDevice->stop();
+	// Stop ping device if switchOffLeds() signal comes
+	if (m_timerPingDevice->isActive())
+		m_timerPingDevice->stop();
 
 	memset(m_writeBuffer, 0, sizeof(m_writeBuffer));
 
-	bool ok = writeBufferToAllDevicesWithCheck(CMD_UPDATE_LEDS);
+	bool ok = writeBufferToAllDevices(CMD_UPDATE_LEDS);
 
-	emit commandCompleted(ok);
-	// Stop ping device if switchOffLeds() signal comes
+	m_suppressPingRestart = true;
+	ack(ok);
+	m_suppressPingRestart = false;
 }
 
 void LedDeviceLightpack::setRefreshDelay(int value)
@@ -174,8 +175,8 @@ void LedDeviceLightpack::setRefreshDelay(int value)
 	m_writeBuffer[WRITE_BUFFER_INDEX_DATA_START] = value & 0xff;
 	m_writeBuffer[WRITE_BUFFER_INDEX_DATA_START+1] = (value >> 8);
 
-	bool ok = writeBufferToAllDevicesWithCheck(CMD_SET_TIMER_OPTIONS);
-	emit commandCompleted(ok);
+	bool ok = writeBufferToAllDevices(CMD_SET_TIMER_OPTIONS);
+	ack(ok);
 }
 
 void LedDeviceLightpack::setUsbPowerLedDisabled(bool isDisabled) {
@@ -183,8 +184,8 @@ void LedDeviceLightpack::setUsbPowerLedDisabled(bool isDisabled) {
 
 	m_writeBuffer[WRITE_BUFFER_INDEX_DATA_START] = (unsigned char)!isDisabled;
 
-	bool ok = writeBufferToAllDevicesWithCheck(CMD_UNOFFICIAL_SET_USBLED);
-	emit commandCompleted(ok);
+	bool ok = writeBufferToAllDevices(CMD_UNOFFICIAL_SET_USBLED);
+	ack(ok);
 }
 
 void LedDeviceLightpack::setColorDepth(int value)
@@ -193,8 +194,8 @@ void LedDeviceLightpack::setColorDepth(int value)
 
 	m_writeBuffer[WRITE_BUFFER_INDEX_DATA_START] = (unsigned char)value;
 
-	bool ok = writeBufferToAllDevicesWithCheck(CMD_SET_PWM_LEVEL_MAX_VALUE);
-	emit commandCompleted(ok);
+	bool ok = writeBufferToAllDevices(CMD_SET_PWM_LEVEL_MAX_VALUE);
+	ack(ok);
 }
 
 void LedDeviceLightpack::setSmoothSlowdown(int value)
@@ -203,13 +204,13 @@ void LedDeviceLightpack::setSmoothSlowdown(int value)
 
 	m_writeBuffer[WRITE_BUFFER_INDEX_DATA_START] = (unsigned char)value;
 
-	bool ok = writeBufferToAllDevicesWithCheck(CMD_SET_SMOOTH_SLOWDOWN);
-	emit commandCompleted(ok);
+	bool ok = writeBufferToAllDevices(CMD_SET_SMOOTH_SLOWDOWN);
+	ack(ok);
 }
 
 void LedDeviceLightpack::setColorSequence(const QString& /*value*/)
 {
-	emit commandCompleted(true);
+	ack(true);
 }
 
 void LedDeviceLightpack::requestFirmwareVersion()
@@ -218,7 +219,7 @@ void LedDeviceLightpack::requestFirmwareVersion()
 
 	QString fwVersion;
 
-	bool ok = readDataFromDeviceWithCheck();
+	bool ok = readDataFromDevice();
 
 	// TODO: write command CMD_GET_VERSION to device
 	int fw_unofficial = 0;
@@ -236,13 +237,14 @@ void LedDeviceLightpack::requestFirmwareVersion()
 
 	emit firmwareVersion(fwVersion);
 	emit firmwareVersionUnofficial(fw_unofficial);
-	emit commandCompleted(ok);
+	ack(ok);
 }
 
 void LedDeviceLightpack::updateDeviceSettings()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << sender();
 
+	AckBatch batch(this);
 	AbstractLedDevice::updateDeviceSettings();
 	setUsbPowerLedDisabled(Settings::isDeviceUsbPowerLedDisabled());
 	setRefreshDelay(Settings::getDeviceRefreshDelay());
@@ -283,8 +285,6 @@ void LedDeviceLightpack::open()
 	}
 
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Lightpack opened";
-
-	updateDeviceSettings();
 
 	emit openDeviceSuccess(true);
 }
@@ -336,14 +336,15 @@ bool LedDeviceLightpack::readDataFromDevice()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
+	if (m_devices.isEmpty())
+		return false;
+
 	int bytes_read = hid_read(m_devices[0], m_readBuffer, sizeof(m_readBuffer));
 
 	if(bytes_read < 0){
 		qWarning() << "Error reading data:" << bytes_read;
-		emit ioDeviceSuccess(false);
 		return false;
 	}
-	emit ioDeviceSuccess(true);
 	return true;
 }
 
@@ -353,6 +354,9 @@ bool LedDeviceLightpack::writeBufferToDevice(int command, hid_device *phid_devic
 #if 0
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "thread id: " << this->thread()->currentThreadId();
 #endif
+
+	if (phid_device == NULL)
+		return false;
 
 	m_writeBuffer[WRITE_BUFFER_INDEX_REPORT_ID] = 0x00;
 	m_writeBuffer[WRITE_BUFFER_INDEX_COMMAND] = command;
@@ -364,90 +368,21 @@ bool LedDeviceLightpack::writeBufferToDevice(int command, hid_device *phid_devic
 		error = hid_write(phid_device, m_writeBuffer, sizeof(m_writeBuffer));
 		if(error < 0){
 			qWarning() << "Error writing data:" << error;
-			emit ioDeviceSuccess(false);
 			return false;
 		}
 	}
-	emit ioDeviceSuccess(true);
 	return true;
 }
 
-bool LedDeviceLightpack::writeBufferToAllDevicesWithCheck(int command) {
-	if (m_devices.size() == 0) return false;
+bool LedDeviceLightpack::writeBufferToAllDevices(int command) {
+	if (m_devices.isEmpty()) return false;
 
 	bool ok = true;
 	for (int i = 0; i < m_devices.size(); i++) {
-		if (!writeBufferToDeviceWithCheck(command, m_devices[i]))
+		if (!writeBufferToDevice(command, m_devices[i]))
 			ok = false;
 	}
 	return ok;
-}
-
-bool LedDeviceLightpack::tryToReopenDevice()
-{
-	if (m_reopening) return false;
-	m_reopening = true;
-
-	closeDevices();
-//	QThread::sleep(100);
-	open();
-
-	m_reopening = false;
-
-	if (m_devices.size() == 0)
-	{
-		return false;
-	}
-
-	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Reopen success";
-	return true;
-}
-
-bool LedDeviceLightpack::readDataFromDeviceWithCheck()
-{
-	DEBUG_MID_LEVEL << Q_FUNC_INFO;
-
-	if (m_devices.size() > 0)
-	{
-		if (!readDataFromDevice())
-		{
-			if (tryToReopenDevice())
-				return readDataFromDevice();
-			else
-				return false;
-		}
-		return true;
-	} else {
-		if (tryToReopenDevice())
-			return readDataFromDevice();
-		else
-			return false;
-	}
-}
-
-bool LedDeviceLightpack::writeBufferToDeviceWithCheck(int command, hid_device *phid_device)
-{
-	DEBUG_MID_LEVEL << Q_FUNC_INFO;
-
-	if (phid_device != NULL)
-	{
-		if (!writeBufferToDevice(command, phid_device))
-		{
-			if (!writeBufferToDevice(command, phid_device))
-			{
-				if (tryToReopenDevice())
-					return writeBufferToDevice(command, phid_device);
-				else
-					return false;
-			}
-		}
-		return true;
-	} else {
-		if (tryToReopenDevice())
-			return writeBufferToDevice(command, phid_device);
-		else
-			return false;
-	}
 }
 
 void LedDeviceLightpack::resizeColorsBuffer(int buffSize)
@@ -472,8 +407,8 @@ void LedDeviceLightpack::closeDevices()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-	m_timerPingDevice->stop();
-	m_timerPingDevice->blockSignals(true);
+	if (m_timerPingDevice->isActive())
+		m_timerPingDevice->stop();
 
 	for(int i=0; i < m_devices.size(); i++) {
 		hid_close(m_devices[i]);
@@ -481,13 +416,16 @@ void LedDeviceLightpack::closeDevices()
 	m_devices.clear();
 }
 
-void LedDeviceLightpack::restartPingDevice()
+void LedDeviceLightpack::restartPingDevice(bool isSuccess)
 {
-	if (Settings::isBacklightEnabled() && Settings::isPingDeviceEverySecond())
+	if (m_suppressPingRestart)
+		return;
+
+	if (isSuccess && !m_devices.isEmpty() && Settings::isBacklightEnabled() && Settings::isPingDeviceEverySecond())
 	{
 		// Start ping device with PingDeviceInterval ms after last data transfer complete
 		m_timerPingDevice->start(kPingDeviceInterval);
-	} else {
+	} else if (m_timerPingDevice->isActive()) {
 		m_timerPingDevice->stop();
 	}
 }
@@ -495,21 +433,9 @@ void LedDeviceLightpack::restartPingDevice()
 void LedDeviceLightpack::timerPingDeviceTimeout()
 {
 	DEBUG_MID_LEVEL << Q_FUNC_INFO;
-	if (m_devices.size() == 0)
+	if (m_devices.isEmpty())
 	{
-		DEBUG_MID_LEVEL << Q_FUNC_INFO << "open devices";
-		open();
-
-		if (m_devices.size() == 0)
-		{
-			DEBUG_MID_LEVEL << Q_FUNC_INFO << "open devices fail";
-			emit openDeviceSuccess(false);
-			return;
-		}
-		DEBUG_MID_LEVEL << Q_FUNC_INFO << "open devices ok";
-
-		emit openDeviceSuccess(true);
-		closeDevices(); // device should be opened by open() function
+		m_timerPingDevice->stop();
 		return;
 	}
 
@@ -528,5 +454,5 @@ void LedDeviceLightpack::timerPingDeviceTimeout()
 	}
 
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "hid_write ok";
-	emit ioDeviceSuccess(true);
+	restartPingDevice(true);
 }

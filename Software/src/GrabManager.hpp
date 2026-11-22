@@ -138,8 +138,8 @@ private:
 	bool m_isPauseGrabWhileResizeOrMoving;
 	bool m_isSendDataOnlyIfColorsChanged;
 	bool m_avgColorsOnAllLeds;
-	bool m_isGrabbingStarted;
-	bool m_isGrabbingSuspendedDueToDeviceError;
+	bool m_isGrabbingStarted{ false };
+	bool m_isGrabbingSuspendedDueToDeviceError{ false };
 	int m_overBrighten;
 	bool m_isApplyBlueLightReduction;
 	bool m_isApplyColorTemperature;

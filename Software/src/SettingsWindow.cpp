@@ -1088,15 +1088,11 @@ void SettingsWindow::ledDeviceOpenSuccess(bool isSuccess)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << isSuccess;
 
-	if (isSuccess)
-	{
-		// Device just connected and for updating colors
-		// we should reset previous saved states
-		//m_grabManager->reset();
-		// m_moodlampManager->reset();
-	}
-
-	ledDeviceCallSuccess(isSuccess);
+	// Wait for ledDeviceCallSuccess(true) from the post-open replay before
+	// clearing StatusDeviceError, so the tray icon does not flap when open()
+	// succeeds while writes keep failing.
+	if (!isSuccess)
+		ledDeviceCallSuccess(false);
 }
 
 void SettingsWindow::ledDeviceCallSuccess(bool isSuccess)

@@ -117,7 +117,7 @@ void LedDeviceDnrgb::setColors(const QList<QRgb> & colors, const bool rawColors)
 	m_colorsSaved = colors;
 	m_processedColorsSaved = newColors;
 
-	emit commandCompleted(ok);
+	ack(ok);
 }
 
 void LedDeviceDnrgb::reinitBufferHeader()

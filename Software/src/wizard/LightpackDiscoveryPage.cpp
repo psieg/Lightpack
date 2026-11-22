@@ -52,6 +52,7 @@ void LightpackDiscoveryPage::initializePage() {
 
 	lpack->open();
 	if (lpack->lightpacksFound() > 0) {
+		lpack->updateDeviceSettings();
 		_ui->rbChooseAnotherDevice->setEnabled(true);
 		_ui->rbLightpackSelected->setEnabled(true);
 
