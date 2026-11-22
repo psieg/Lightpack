@@ -1,5 +1,5 @@
 #!/bin/sh
-kde_version=${KDE_VERSION:-5.15-25.08}
+kde_version=${KDE_VERSION:-6.10}
 flatpak_id=de.psieg.Prismatik
 destdir=tmp
 VERSION=`cat ../../RELEASE_VERSION`

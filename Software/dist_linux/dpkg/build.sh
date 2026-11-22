@@ -1,10 +1,8 @@
 #!/bin/sh -xe
 
-export QT_SELECT=qt5
-
 cd ../..
-qmake -r
-make
+qmake6 -r
+make -j$(nproc)
 cd -
 
 VERSION=`cat ../../RELEASE_VERSION`

@@ -27,6 +27,14 @@
 #include "PulseAudioSoundManager.hpp"
 #include "debug.h"
 
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 static inline void weights_init(float *dest, int samples, enum w_type w)
 {
 	switch(w) {

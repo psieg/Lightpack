@@ -31,8 +31,7 @@
 #include <vector>
 #include <mutex>
 
-#include <complex.h>
-#include <tgmath.h>
+#include <cmath>
 #include <fftw3.h>
 
 enum w_type
