@@ -23,7 +23,7 @@ pkgver() {
 build() {
     cd ${_srcdir}
     qmake6 -r
-    make ${MAKEFLAGS}
+    make ${MAKEFLAGS:--j$(nproc)}
 }
 
 check() {

@@ -6,8 +6,11 @@ RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
     fftw \
     gcc \
     git \
+    hicolor-icon-theme \
     libpulse \
     libusb \
+    libx11 \
+    libxext \
     lsb-release \
     namcap \
     qt6-base \

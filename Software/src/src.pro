@@ -72,15 +72,6 @@ unix:!macx{
     }
     CONFIG    += link_pkgconfig
     PKGCONFIG += libusb-1.0
-
-    DESKTOP = $$(XDG_CURRENT_DESKTOP)
-
-    equals(DESKTOP, "Unity") {
-        DEFINES += UNITY_DESKTOP
-        PKGCONFIG += gtk+-2.0 appindicator-0.1 libnotify
-    }
-
-    QMAKE_LFLAGS += -Wl,-rpath=/usr/lib/prismatik
 }
 
 win32 {

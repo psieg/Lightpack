@@ -2,7 +2,7 @@
 
 cd ../..
 qmake6 -r
-make
+make -j$(nproc)
 cd -
 
 VERSION=`cat ../../RELEASE_VERSION`

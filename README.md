@@ -123,7 +123,8 @@ You will need the following packages, usually all of them are in distro's reposi
 * `pkg-config`
 * `libusb-1.0-0-dev`
 * `libudev-dev`
-* if you are using Unity DE: `libappindicator-dev` `libnotify-dev` `libgtk2.0-dev`
+* `libx11-dev`
+* `libxext-dev`
 * if you are using gnome you'll need `gnome-shell-extension-appindicator` for a working tray icon
 * not required, but the update checker uses SSL sockets: `openssl`
 * for sound visualizer: `libpulse-dev`, `libfftw3-dev` (edit `build-vars.prf(.default)` and comment out `PULSEAUDIO_SUPPORT` to disable the feature)

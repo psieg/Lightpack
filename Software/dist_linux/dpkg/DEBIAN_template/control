@@ -3,7 +3,7 @@ Version: ${version}
 Architecture: ${arch} 
 Maintainer: Alexey Roslyakov<alexey.roslyakov@gmail.com>
 Installed-Size: ${size}
-Depends: libc6, libxext6, libx11-6, libusb-1.0-0, libappindicator1, libgtk2.0-0, libglib2.0-0, libqt6widgets6 (>= 6.2.0) | libqt6widgets6t64 (>= 6.2.0), libqt6network6 (>= 6.2.0) | libqt6network6t64 (>= 6.2.0), libqt6gui6 (>= 6.2.0) | libqt6gui6t64 (>= 6.2.0), libqt6core6 (>= 6.2.0) | libqt6core6t64 (>= 6.2.0), libqt6serialport6 (>= 6.2.0), libstdc++6, libgcc-s1 | libgcc1, openssl
+Depends: libc6, libxext6, libx11-6, libusb-1.0-0, libpulse0, libfftw3-single3, libqt6widgets6 (>= 6.2.0) | libqt6widgets6t64 (>= 6.2.0), libqt6network6 (>= 6.2.0) | libqt6network6t64 (>= 6.2.0), libqt6gui6 (>= 6.2.0) | libqt6gui6t64 (>= 6.2.0), libqt6core6 (>= 6.2.0) | libqt6core6t64 (>= 6.2.0), libqt6serialport6 (>= 6.2.0), libstdc++6, libgcc-s1 | libgcc1, openssl
 Conflicts: lightpack
 Replaces: lightpack
 Section: electronics
