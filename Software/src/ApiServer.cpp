@@ -27,6 +27,14 @@
 #include <QtNetwork>
 #include <QCryptographicHash>
 #include <stdlib.h>
+#ifdef Q_OS_WIN
+#include <winsock2.h>
+#ifdef _MSC_VER
+#pragma comment(lib, "ws2_32.lib")
+#endif
+#else
+#include <unistd.h>
+#endif
 
 #include "ApiServer.hpp"
 #include "LightpackPluginInterface.hpp"
@@ -280,9 +288,20 @@ void ApiServer::incomingConnection(qintptr socketDescriptor)
 	if (m_clients.size() >= MaxClients)
 	{
 		qWarning() << Q_FUNC_INFO << "Max API clients reached, rejecting connection";
-		QTcpSocket rejected;
-		if (rejected.setSocketDescriptor(socketDescriptor))
-			rejected.abort();
+		QTcpSocket *rejected = new QTcpSocket(this);
+		if (rejected->setSocketDescriptor(socketDescriptor))
+		{
+			rejected->abort();
+		}
+		else
+		{
+#ifdef Q_OS_WIN
+			closesocket(static_cast<SOCKET>(socketDescriptor));
+#else
+			close(static_cast<int>(socketDescriptor));
+#endif
+		}
+		rejected->deleteLater();
 		return;
 	}
 
