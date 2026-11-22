@@ -97,6 +97,13 @@ Filename: "{sys}\schtasks.exe"; Parameters: "/delete /f /TN ""Prismatik with Adm
 Filename: "{app}\UpdateElevate"; Parameters: "uninstall"; Flags: runhidden
 Filename: "{sys}\schtasks.exe"; Parameters: "/delete /f /TN ""Prismatik with Admin Rights"""; Flags: runhidden
 
+[InstallDelete]
+Type: files; Name: "{app}\Qt5*.dll"
+Type: files; Name: "{app}\libcrypto*.dll"
+Type: files; Name: "{app}\libssl*.dll"
+Type: files; Name: "{app}\libeay32.dll"
+Type: files; Name: "{app}\ssleay32.dll"
+
 [UninstallDelete]
 Name: "{app}\*.*"; Type: filesandordirs
 Name: (app); Type: dirifempty
