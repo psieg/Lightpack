@@ -296,9 +296,9 @@ void ApiServer::incomingConnection(qintptr socketDescriptor)
 		else
 		{
 #ifdef Q_OS_WIN
-			closesocket(static_cast<SOCKET>(socketDescriptor));
+			::closesocket(static_cast<SOCKET>(socketDescriptor));
 #else
-			close(static_cast<int>(socketDescriptor));
+			::close(static_cast<int>(socketDescriptor));
 #endif
 		}
 		rejected->deleteLater();
