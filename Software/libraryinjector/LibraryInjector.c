@@ -29,6 +29,9 @@
 #endif
 
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <wchar.h>
 #include <olectl.h>
 
 /*! A count of how many objects of our DLL has been created
@@ -80,12 +83,14 @@ void libraryInjectorShutdown(void) {
 void reportLog(WORD logType, LPCWSTR message, ...) {
     va_list ap;
     int sprintfResult;
+    const size_t reportBufChars = REPORT_LOG_BUF_SIZE / sizeof(WCHAR);
 
-    WCHAR *reportLogBuf = malloc(REPORT_LOG_BUF_SIZE);
-    memset(reportLogBuf, 0, REPORT_LOG_BUF_SIZE);
+    WCHAR *reportLogBuf = (WCHAR *)calloc(reportBufChars, sizeof(WCHAR));
+    if (!reportLogBuf)
+        return;
 
     va_start( ap, message );
-    sprintfResult = wvsprintfW(reportLogBuf, message, ap);
+    sprintfResult = _vsnwprintf_s(reportLogBuf, reportBufChars, _TRUNCATE, message, ap);
     va_end( ap );
     if (sprintfResult > -1) {
         LPCWSTR reportStrings[] = { reportLogBuf };
@@ -99,16 +104,19 @@ static BOOL SetPrivilege(HANDLE hToken, LPCTSTR szPrivName, BOOL fEnable) {
 
     TOKEN_PRIVILEGES tp;
     tp.PrivilegeCount = 1;
-    LookupPrivilegeValue(NULL, szPrivName, &tp.Privileges[0].Luid);
+    if (!LookupPrivilegeValue(NULL, szPrivName, &tp.Privileges[0].Luid))
+        return FALSE;
     tp.Privileges[0].Attributes = fEnable ? SE_PRIVILEGE_ENABLED : 0;
-    AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof (tp), NULL, NULL);
+    if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof (tp), NULL, NULL))
+        return FALSE;
     return ((GetLastError() == ERROR_SUCCESS));
 
 }
 
 static BOOL AcquirePrivilege(void) {
     HANDLE hCurrentProc = GetCurrentProcess();
-    HANDLE hCurrentProcToken;
+    HANDLE hCurrentProcToken = NULL;
+    BOOL ok = FALSE;
 
     if (!OpenProcessToken(hCurrentProc, TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hCurrentProcToken)) {
         reportLog(EVENTLOG_ERROR_TYPE, L"OpenProcessToken Error 0x%x", GetLastError());
@@ -116,10 +124,11 @@ static BOOL AcquirePrivilege(void) {
         if (!SetPrivilege(hCurrentProcToken, SE_DEBUG_NAME, TRUE)) {
             reportLog(EVENTLOG_ERROR_TYPE, L"SetPrivleges SE_DEBUG_NAME Error 0x%x", GetLastError());
         } else {
-            return TRUE;
+            ok = TRUE;
         }
+        CloseHandle(hCurrentProcToken);
     }
-    return FALSE;
+    return ok;
 }
 
 static HRESULT STDMETHODCALLTYPE LibraryInjector_QueryInterface(ILibraryInjector * this, REFIID interfaceGuid, void **ppv) {
@@ -152,22 +161,36 @@ static ULONG STDMETHODCALLTYPE LibraryInjector_Release(ILibraryInjector * this) 
 }
 
 static HRESULT STDMETHODCALLTYPE LibraryInjector_Inject(ILibraryInjector * this, DWORD ProcessId, LPWSTR ModulePath) {
-    char CodePage[2048];
-    WCHAR modulePath[300];
+    WCHAR modulePath[MAX_PATH + 16];
 
-    wcscpy(modulePath, ModulePath);
     UNREFERENCED_PARAMETER(this);
-    //reportLog(EVENTLOG_INFORMATION_TYPE, L"injecting library...");
+    if (ModulePath == NULL)
+        return E_INVALIDARG;
+    if (wcscpy_s(modulePath, _countof(modulePath), ModulePath) != 0) {
+        reportLog(EVENTLOG_ERROR_TYPE, L"module path exceeds buffer limits");
+        return E_INVALIDARG;
+    }
+
     if(AcquirePrivilege()) {
         size_t sizeofCP;
         LPVOID Memory = NULL;
         HANDLE hThread = NULL;
-        HMODULE hKernel32 = GetModuleHandle(L"kernel32.dll");
+        HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
         HRESULT result = E_FAIL;
+        DWORD_PTR LoadLibAddr = 0;
+        HANDLE hProcess = NULL;
 
-        DWORD_PTR LoadLibAddr = (DWORD_PTR)GetProcAddress(hKernel32, "LoadLibraryW");
+        if (!hKernel32)
+            return E_FAIL;
 
-        HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
+        LoadLibAddr = (DWORD_PTR)GetProcAddress(hKernel32, "LoadLibraryW");
+        if (!LoadLibAddr)
+            return E_FAIL;
+
+        hProcess = OpenProcess(
+            PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ,
+            FALSE,
+            ProcessId);
 
         if (hProcess == NULL) {
             reportLog(EVENTLOG_ERROR_TYPE, L"couldn't open process");
@@ -176,46 +199,54 @@ static HRESULT STDMETHODCALLTYPE LibraryInjector_Inject(ILibraryInjector * this,
 
 #ifdef _WIN64
         BOOL isWow64Process = FALSE;
-        IsWow64Process(hProcess, &isWow64Process);
+        if (!IsWow64Process(hProcess, &isWow64Process)) {
+            goto end;
+        }
         if (isWow64Process) {
-
-            HANDLE mapping = OpenFileMapping(FILE_MAP_READ, FALSE, HOOKSGRABBER_SHARED_MEM_NAME);
-            if (NULL == mapping) {
-                reportLog(EVENTLOG_ERROR_TYPE, L"couldn't open shared memory");
+            size_t len = wcslen(modulePath);
+            if (len < 4 || _wcsicmp(modulePath + len - 4, L".dll") != 0 ||
+                wcscpy_s(modulePath + len - 4, _countof(modulePath) - (len - 4), L"32.dll") != 0)
+            {
+                reportLog(EVENTLOG_ERROR_TYPE, L"invalid 32-bit hook module path");
                 goto end;
             }
 
-            char *memory = (char *)MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, HOOKSGRABBER_SHARED_MEM_SIZE);
+            HANDLE mapping = OpenFileMappingW(FILE_MAP_READ, FALSE, HOOKSGRABBER_CONFIG_MEM_NAME);
+            if (NULL == mapping) {
+                reportLog(EVENTLOG_ERROR_TYPE, L"couldn't open config shared memory");
+                goto end;
+            }
+
+            const char *memory = (const char *)MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, HOOKSGRABBER_CONFIG_MEM_SIZE);
             if (memory == NULL) {
-                reportLog(EVENTLOG_ERROR_TYPE, L"couldn't map shared memory");
+                reportLog(EVENTLOG_ERROR_TYPE, L"couldn't map config shared memory");
                 CloseHandle(mapping);
                 goto end;
             }
 
-            size_t len = wcslen(modulePath);
-            wcscpy(modulePath + len - 4, L"32.dll");
-
-            struct HOOKSGRABBER_SHARED_MEM_DESC *desc = (struct HOOKSGRABBER_SHARED_MEM_DESC*)memory;
-
-            LoadLibAddr = desc->loadLibraryWAddress32;
+            const struct HOOKSGRABBER_CONFIG_DESC *desc = (const struct HOOKSGRABBER_CONFIG_DESC *)memory;
+            LoadLibAddr = (DWORD_PTR)desc->loadLibraryWAddress32;
 
             UnmapViewOfFile(memory);
             CloseHandle(mapping);
+
+            if (LoadLibAddr == 0) {
+                reportLog(EVENTLOG_ERROR_TYPE, L"missing 32-bit LoadLibraryW address");
+                goto end;
+            }
         }
 #endif
 
-        sizeofCP = wcslen(modulePath)*2 + 1;
-        Memory = VirtualAllocEx(hProcess, 0, sizeofCP, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+        sizeofCP = (wcslen(modulePath) + 1) * sizeof(WCHAR);
+        Memory = VirtualAllocEx(hProcess, NULL, sizeofCP, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
         if (!Memory) {
             reportLog(EVENTLOG_ERROR_TYPE, L"couldn't allocate memory");
             goto end;
         }
 
-        wcscpy((wchar_t*)CodePage, modulePath);
-
-        if (!WriteProcessMemory(hProcess, Memory, CodePage, sizeofCP, 0)) {
-            reportLog(EVENTLOG_ERROR_TYPE, L"couldn't write loading library code");
+        if (!WriteProcessMemory(hProcess, Memory, modulePath, sizeofCP, NULL)) {
+            reportLog(EVENTLOG_ERROR_TYPE, L"couldn't write loading library path");
             goto end;
         }
 

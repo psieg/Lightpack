@@ -33,6 +33,12 @@
 #include <psapi.h>
 #include <tlhelp32.h>
 #include <shlwapi.h>
+#include <sddl.h>
+#include <algorithm>
+#include <vector>
+
+#pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "user32.lib")
 
 #include "../src/debug.h"
 
@@ -103,18 +109,16 @@ BOOL SetPrivilege(HANDLE hToken, LPCTSTR szPrivName, BOOL fEnable) {
 BOOL AcquirePrivileges() {
 
 	HANDLE hCurrentProc = GetCurrentProcess();
-	HANDLE hCurrentProcToken;
+	HANDLE hCurrentProcToken = NULL;
+	BOOL ok = FALSE;
 
-	if (!OpenProcessToken(hCurrentProc, TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hCurrentProcToken)) {
-//		syslog(LOG_ERR, "OpenProcessToken Error %u", GetLastError());
-	} else {
-		if (!SetPrivilege(hCurrentProcToken, SE_DEBUG_NAME, TRUE)) {
-//			syslog(LOG_ERR, "SetPrivleges SE_DEBUG_NAME Error %u", GetLastError());
-		} else {
-			return TRUE;
+	if (OpenProcessToken(hCurrentProc, TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hCurrentProcToken)) {
+		if (SetPrivilege(hCurrentProcToken, SE_DEBUG_NAME, TRUE)) {
+			ok = TRUE;
 		}
+		CloseHandle(hCurrentProcToken);
 	}
-	return FALSE;
+	return ok;
 }
 
 BOOL IsUserAdmin() {
@@ -144,42 +148,48 @@ BOOL IsUserAdmin() {
 
 QList<DWORD> * getProcessesIDs(QList<DWORD> * processes, LPCWSTR withModule[], UINT withModuleCount, LPCWSTR withoutModule[], UINT withoutModuleCount, LPCWSTR wstrSystemRootPath, BOOL requireWindow) {
 
-	DWORD aProcesses[1024];
-	HMODULE hMods[1024];
-	DWORD cbNeeded;
-	DWORD cProcesses;
+	std::vector<DWORD> aProcesses(1024);
+	std::vector<HMODULE> hMods(1024);
+	DWORD cbNeeded = 0;
+	DWORD cProcesses = 0;
 	char debug_buf_process[255];
-	//char debug_buf_module[255];
 	WCHAR executableName[MAX_PATH];
 	unsigned int i;
 
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "scanning";
 
-	//		Get the list of process identifiers.
 	processes->clear();
 
-	if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
-		return NULL;
+	size_t sysRootLen = wstrSystemRootPath ? wcslen(wstrSystemRootPath) : 0;
+	while (sysRootLen > 0 && (wstrSystemRootPath[sysRootLen - 1] == L'\\' || wstrSystemRootPath[sysRootLen - 1] == L'/'))
+		--sysRootLen;
 
-	// Calculate how many process identifiers were returned.
+	for (;;) {
+		const DWORD bufBytes = static_cast<DWORD>(aProcesses.size() * sizeof(DWORD));
+		if (!EnumProcesses(aProcesses.data(), bufBytes, &cbNeeded))
+			return NULL;
+		if (cbNeeded < bufBytes || aProcesses.size() >= 65536)
+			break;
+		aProcesses.resize(aProcesses.size() * 2);
+	}
 
-	cProcesses = cbNeeded / sizeof(DWORD);
-
-	// Print the names of the modules for each process.
+	cProcesses = std::min<DWORD>(cbNeeded / sizeof(DWORD), static_cast<DWORD>(aProcesses.size()));
 
 	for (i = 0; i < cProcesses; i++)
 	{
-		if (aProcesses[i] != GetCurrentProcessId()) {
-			HANDLE hProcess;
-			hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
-				PROCESS_VM_READ,
-				FALSE, aProcesses[i]);
+		if (aProcesses[i] != 0 && aProcesses[i] != GetCurrentProcessId()) {
+			HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, aProcesses[i]);
 			if (NULL == hProcess)
+				continue;
+
+			if (!GetModuleFileNameExW(hProcess, 0, executableName, SIZEOF_ARRAY(executableName))) {
 				goto nextProcess;
+			}
 
-			GetModuleFileNameExW(hProcess, 0, executableName, sizeof(executableName));
-
-			if (wcsstr(executableName, wstrSystemRootPath) != NULL) {
+			if (sysRootLen > 0 &&
+				_wcsnicmp(executableName, wstrSystemRootPath, sysRootLen) == 0 &&
+				(executableName[sysRootLen] == L'\\' || executableName[sysRootLen] == L'/' || executableName[sysRootLen] == L'\0'))
+			{
 				goto nextProcess;
 			}
 
@@ -195,69 +205,76 @@ QList<DWORD> * getProcessesIDs(QList<DWORD> * processes, LPCWSTR withModule[], U
 				}
 			}
 
-			// Get a list of all the modules in this process.
-#ifdef _WIN64
-			if (EnumProcessModulesEx(hProcess, hMods, sizeof(hMods), &cbNeeded, LIST_MODULES_ALL))
-#else
-			if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
-#endif
+			// Dynamically query all modules in this process without reading out-of-bounds if >1024 modules are loaded.
 			{
-				bool isModulePresent = false;
-				for (DWORD j = 0; j < (cbNeeded / sizeof(HMODULE)); j++)
+				BOOL enumOk = FALSE;
+				for (;;) {
+					const DWORD modBufBytes = static_cast<DWORD>(hMods.size() * sizeof(HMODULE));
+#ifdef _WIN64
+					enumOk = EnumProcessModulesEx(hProcess, hMods.data(), modBufBytes, &cbNeeded, LIST_MODULES_ALL);
+#else
+					enumOk = EnumProcessModules(hProcess, hMods.data(), modBufBytes, &cbNeeded);
+#endif
+					if (!enumOk || cbNeeded <= modBufBytes || hMods.size() >= 32768)
+						break;
+					hMods.resize(std::min<size_t>(32768, static_cast<size_t>((cbNeeded / sizeof(HMODULE)) + 64)));
+				}
+
+				if (enumOk)
 				{
-					WCHAR szModName[MAX_PATH];
-
-					if (GetModuleFileNameExW(hProcess, hMods[j], szModName,
-						sizeof(szModName) / sizeof(WCHAR)))
+					bool isModulePresent = false;
+					const DWORD modCount = std::min<DWORD>(cbNeeded / sizeof(HMODULE), static_cast<DWORD>(hMods.size()));
+					for (DWORD j = 0; j < modCount; j++)
 					{
+						WCHAR szModName[MAX_PATH];
 
-						PathStripPathW(szModName);
-						//::WideCharToMultiByte(CP_ACP, 0, szModName, -1, debug_buf_module, 255, NULL, NULL);
-						//DEBUG_HIGH_LEVEL << Q_FUNC_INFO << debug_buf_process << "has module" << debug_buf_module;
+						if (GetModuleFileNameExW(hProcess, hMods[j], szModName,
+							sizeof(szModName) / sizeof(WCHAR)))
+						{
+							PathStripPathW(szModName);
 
-						for (unsigned k = 0; k < withoutModuleCount; k++) {
-							if (wcsicmp(szModName, withoutModule[k]) == 0) {
-								goto nextProcess;
+							for (unsigned k = 0; k < withoutModuleCount; k++) {
+								if (wcsicmp(szModName, withoutModule[k]) == 0) {
+									goto nextProcess;
+								}
 							}
-						}
 
-						for (unsigned k = 0; k < withModuleCount; k++) {
-							if (wcsicmp(szModName, withModule[k]) == 0) {
-								isModulePresent = true;
-								break;
+							for (unsigned k = 0; k < withModuleCount; k++) {
+								if (wcsicmp(szModName, withModule[k]) == 0) {
+									isModulePresent = true;
+									break;
+								}
 							}
 						}
 					}
-				}
-				if (isModulePresent) {
-					if (requireWindow) {
-						HWND wnd = find_main_window(aProcesses[i]);
-						if (wnd) {
-							int w = GetSystemMetrics(SM_CXSCREEN);
-							int h = GetSystemMetrics(SM_CYSCREEN);
-							RECT rcWindow;
-							GetWindowRect(wnd, &rcWindow);
-							if ((w == (rcWindow.right - rcWindow.left)) &&
-								(h == (rcWindow.bottom - rcWindow.top))) {
+					if (isModulePresent) {
+						if (requireWindow) {
+							HWND wnd = find_main_window(aProcesses[i]);
+							if (wnd) {
+								int w = GetSystemMetrics(SM_CXSCREEN);
+								int h = GetSystemMetrics(SM_CYSCREEN);
+								RECT rcWindow;
+								GetWindowRect(wnd, &rcWindow);
+								if ((w == (rcWindow.right - rcWindow.left)) &&
+									(h == (rcWindow.bottom - rcWindow.top))) {
 
-								DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and fullscreen window";
-								processes->append(aProcesses[i]);
+									DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and fullscreen window";
+									processes->append(aProcesses[i]);
+								} else {
+									DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and non-fullscreen window";
+								}
 							} else {
-								DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and non-fullscreen window";
+								DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and no window";
 							}
-						} else {
-							DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module and no window";
+						}
+						else {
+							DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module";
+							processes->append(aProcesses[i]);
 						}
 					}
-					else {
-						DEBUG_MID_LEVEL << Q_FUNC_INFO << debug_buf_process << "has required module";
-						processes->append(aProcesses[i]);
-					}
-
+				} else {
+					DEBUG_HIGH_LEVEL << Q_FUNC_INFO << debug_buf_process << "module enum failed:" << GetLastError();
 				}
-
-			} else {
-				DEBUG_HIGH_LEVEL << Q_FUNC_INFO << debug_buf_process << "module enum failed:" << GetLastError();
 			}
 		nextProcess:
 			// Release the handle to the process.
@@ -281,95 +298,78 @@ QList<DWORD> * getHookedProcessesIDs(QList<DWORD> * processes, LPCWSTR wstrSyste
 }
 
 
-PVOID BuildRestrictedSD(PSECURITY_DESCRIPTOR pSD) {
-	DWORD	dwAclLength;
-	PSID	pAuthenticatedUsersSID = NULL;
-	PACL	pDACL	= NULL;
-	BOOL	bResult = FALSE;
-	SID_IDENTIFIER_AUTHORITY siaNT = SECURITY_NT_AUTHORITY;
+static QString getProcessTokenUserSidString(HANDLE hProcess) {
+	HANDLE hToken = NULL;
+	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken))
+		return QString();
 
-	// initialize the security descriptor
-	if (!InitializeSecurityDescriptor(pSD,
-										SECURITY_DESCRIPTOR_REVISION)) {
-//		syslog(LOG_ERR, "InitializeSecurityDescriptor() failed with error %d\n",
-//				GetLastError());
-		goto end;
+	DWORD needed = 0;
+	GetTokenInformation(hToken, TokenUser, NULL, 0, &needed);
+	if (needed == 0) {
+		CloseHandle(hToken);
+		return QString();
 	}
 
-	// obtain a sid for the Authenticated Users Group
-	if (!AllocateAndInitializeSid(&siaNT, 1,
-									SECURITY_AUTHENTICATED_USER_RID, 0, 0, 0, 0, 0, 0, 0,
-									&pAuthenticatedUsersSID)) {
-//		syslog(LOG_ERR, "AllocateAndInitializeSid() failed with error %d\n",
-//				GetLastError());
-		goto end;
+	QByteArray buf(static_cast<int>(needed), 0);
+	QString result;
+	if (GetTokenInformation(hToken, TokenUser, buf.data(), needed, &needed)) {
+		const TOKEN_USER *tokenUser = reinterpret_cast<const TOKEN_USER *>(buf.constData());
+		LPWSTR strSid = NULL;
+		if (ConvertSidToStringSidW(tokenUser->User.Sid, &strSid) && strSid) {
+			result = QString::fromWCharArray(strSid);
+			LocalFree(strSid);
+		}
 	}
-
-	// NOTE:
-	//
-	// The Authenticated Users group includes all user accounts that
-	// have been successfully authenticated by the system. If access
-	// must be restricted to a specific user or group other than
-	// Authenticated Users, the SID can be constructed using the
-	// LookupAccountSid() API based on a user or group name.
-
-	// calculate the DACL length
-	dwAclLength = sizeof(ACL)
-			// add space for Authenticated Users group ACE
-			+ sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD)
-			+ GetLengthSid(pAuthenticatedUsersSID);
-
-	// allocate memory for the DACL
-	pDACL = (PACL) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-								dwAclLength);
-	if (!pDACL) {
-//		syslog(LOG_ERR, "HeapAlloc() failed with error %d\n", GetLastError());
-		goto end;
-	}
-
-	// initialize the DACL
-	if (!InitializeAcl(pDACL, dwAclLength, ACL_REVISION)) {
-//		syslog(LOG_ERR, "InitializeAcl() failed with error %d\n",
-//				GetLastError());
-		goto end;
-	}
-
-	// add the Authenticated Users group ACE to the DACL with
-	// GENERIC_READ, GENERIC_WRITE, and GENERIC_EXECUTE access
-
-	if (!AddAccessAllowedAce(pDACL, ACL_REVISION,
-								MAXIMUM_ALLOWED ,
-								pAuthenticatedUsersSID)) {
-//		syslog(LOG_ERR, "AddAccessAllowedAce() failed with error %d\n",
-//				GetLastError());
-		goto end;
-	}
-
-	// set the DACL in the security descriptor
-	if (!SetSecurityDescriptorDacl(pSD, TRUE, pDACL, FALSE)) {
-//		syslog(LOG_ERR, "SetSecurityDescriptorDacl() failed with error %d\n",
-//				GetLastError());
-		goto end;
-	}
-
-	bResult = TRUE;
-
-end:
-	if (pAuthenticatedUsersSID) FreeSid(pAuthenticatedUsersSID);
-
-	if (bResult == FALSE) {
-		if (pDACL) HeapFree(GetProcessHeap(), 0, pDACL);
-		pDACL = NULL;
-	}
-
-	return (PVOID) pDACL;
+	CloseHandle(hToken);
+	return result;
 }
 
-VOID FreeRestrictedSD(PVOID ptr) {
+PSECURITY_DESCRIPTOR BuildHookObjectSD(DWORD interactiveUserAccessMask, bool highIntegrityNoWriteUp) {
+	const QString currentSid = getProcessTokenUserSidString(GetCurrentProcess());
+	if (currentSid.isEmpty())
+		return NULL;
 
-	if (ptr) HeapFree(GetProcessHeap(), 0, ptr);
+	QString shellSid;
+	HWND hShellWnd = GetShellWindow();
+	if (hShellWnd) {
+		DWORD shellPid = 0;
+		GetWindowThreadProcessId(hShellWnd, &shellPid);
+		if (shellPid != 0) {
+			HANDLE hShellProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shellPid);
+			if (hShellProc) {
+				shellSid = getProcessTokenUserSidString(hShellProc);
+				CloseHandle(hShellProc);
+			}
+		}
+	}
 
-	return;
+	const BOOL isAdmin = IsUserAdmin();
+	const QString hexMask = QStringLiteral("0x%1").arg(static_cast<quint32>(interactiveUserAccessMask), 8, 16, QLatin1Char('0'));
+
+	QString sddl = QStringLiteral("D:P(A;;GA;;;SY)(A;;GA;;;BA)");
+	sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, currentSid);
+
+	if (!shellSid.isEmpty() && shellSid.compare(currentSid, Qt::CaseInsensitive) != 0) {
+		sddl += QStringLiteral("(A;;%1;;;%2)").arg(hexMask, shellSid);
+	}
+
+	if (highIntegrityNoWriteUp && isAdmin) {
+		sddl += QStringLiteral("S:(ML;;NW;;;HI)");
+	} else {
+		sddl += QStringLiteral("S:(ML;;NW;;;ME)");
+	}
+
+	PSECURITY_DESCRIPTOR pSD = NULL;
+	const std::wstring sddlW = sddl.toStdWString();
+	if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddlW.c_str(), SDDL_REVISION_1, &pSD, NULL)) {
+		return NULL;
+	}
+	return pSD;
+}
+
+VOID FreeHookObjectSD(PSECURITY_DESCRIPTOR pSD) {
+	if (pSD)
+		LocalFree(pSD);
 }
 
 #if defined(NIGHTLIGHT_SUPPORT)

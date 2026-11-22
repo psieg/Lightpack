@@ -63,11 +63,8 @@ QList<DWORD> * getDxProcessesIDs(QList<DWORD> * processes, LPCWSTR wstrSystemRoo
 QList<DWORD> * getDxgiProcessesIDs(QList<DWORD> * processes, LPCWSTR wstrSystemRootPath);
 QList<DWORD> * getHookedProcessesIDs(QList<DWORD> * processes, LPCWSTR wstrSystemRootPath);
 
-PVOID BuildRestrictedSD(PSECURITY_DESCRIPTOR pSD);
-
-// The following function frees memory allocated in the
-// BuildRestrictedSD() function
-VOID FreeRestrictedSD(PVOID ptr);
+PSECURITY_DESCRIPTOR BuildHookObjectSD(DWORD interactiveUserAccessMask, bool highIntegrityNoWriteUp);
+VOID FreeHookObjectSD(PSECURITY_DESCRIPTOR pSD);
 
 #if defined(NIGHTLIGHT_SUPPORT)
 	class NightLight : public BlueLightReduction::Client

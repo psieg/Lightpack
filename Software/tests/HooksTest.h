@@ -11,6 +11,8 @@ public:
 
 private slots:
 	void jmpHookTestCase();
+	void jmpHookOutOfRangeAndNullTestCase();
+	void frameSizeValidationTestCase();
 	void vfTableHookTestCase();
 	void reportLogTestCase();
 

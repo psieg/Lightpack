@@ -66,6 +66,12 @@ int CALLBACK WinMain(
 	UNREFERENCED_PARAMETER(lpCmdLine);
 	UNREFERENCED_PARAMETER(nCmdShow);
 
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+	SetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+
 	HWND hWnd = createWindow(hInstance);
 	if (!hWnd) {
 		return 1;
@@ -85,17 +91,22 @@ int CALLBACK WinMain(
 	HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
 	UINT loadLibraryWAddr = (UINT) GetProcAddress(kernel32, "LoadLibraryW");
 
-	HANDLE mapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, HOOKSGRABBER_SHARED_MEM_NAME);
+	HANDLE mapping = OpenFileMappingW(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, HOOKSGRABBER_CONFIG_MEM_NAME);
 	if (NULL == mapping) {
+		CloseWindow(hWnd);
+		DestroyWindow(hWnd);
 		return 4;
 	}
 
-	char *memory = (char *)MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, HOOKSGRABBER_SHARED_MEM_SIZE);
+	char *memory = (char *)MapViewOfFile(mapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, HOOKSGRABBER_CONFIG_MEM_SIZE);
 	if (memory == NULL) {
+		CloseHandle(mapping);
+		CloseWindow(hWnd);
+		DestroyWindow(hWnd);
 		return 5;
 	}
 
-	HOOKSGRABBER_SHARED_MEM_DESC *desc = (HOOKSGRABBER_SHARED_MEM_DESC*)memory;
+	HOOKSGRABBER_CONFIG_DESC *desc = (HOOKSGRABBER_CONFIG_DESC*)memory;
 
 	desc->d3d9PresentFuncOffset32 = d3d9PresentOffset;
 	desc->d3d9SCPresentFuncOffset32 = d3d9SCPresentOffset;

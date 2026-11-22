@@ -56,7 +56,9 @@ STDAPI DllRegisterServer(void) {
     HRESULT     result;
     WCHAR       filename[MAX_PATH];
 
-    GetModuleFileNameW(GetCurrentModule(), filename, sizeof(filename));
+    DWORD fnLen = GetModuleFileNameW(GetCurrentModule(), filename, _countof(filename));
+    if (fnLen == 0 || fnLen >= _countof(filename))
+        return E_FAIL;
 
     result = S_FALSE;
     // Open "HKEY_LOCAL_MACHINE\Software\Classes"

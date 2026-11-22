@@ -20,6 +20,7 @@
 //void ReportLogError(const LPWSTR message, ...);
 
 bool WriteToProtectedMem(void * mem, void * newVal, void * savedVal, size_t size);
+bool IsModuleOffsetValid(HMODULE module, UINT offset, size_t minSize);
 
 inline void * incPtr(void * ptr, UINT offset) {
 	return (void *)( (DWORD_PTR)ptr + offset );
