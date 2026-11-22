@@ -95,12 +95,84 @@ QList<UpdateInfo> UpdatesProcessor::readUpdates()
 	return updates;
 }
 
+#ifdef Q_OS_WIN
+namespace {
+constexpr qint64 kMaxUpdatePkgBytes = 512LL * 1024 * 1024;
+constexpr qint64 kMaxUpdateSigBytes = 1024;
+
+bool isAllowedHttpsUrl(const QString& rawUrl, QUrl& outUrl)
+{
+	outUrl = QUrl(rawUrl, QUrl::StrictMode);
+	return outUrl.isValid() &&
+		outUrl.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) == 0 &&
+		!outUrl.host().isEmpty();
+}
+
+bool writeReplyStreamSafely(QNetworkReply* reply, const QString& destPath, qint64 maxBytes, qint64 minBytes = 1)
+{
+	QFileInfo fi(destPath);
+	if (fi.isSymLink()) {
+		qCritical() << "Refusing to write update artifact through symlink:" << destPath;
+		return false;
+	}
+
+	QFile::remove(destPath);
+	QFile f(destPath);
+	if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+		qCritical() << "Failed to open update artifact for writing:" << destPath;
+		return false;
+	}
+
+	qint64 totalWritten = 0;
+	char buf[65536];
+	while (!reply->atEnd()) {
+		const qint64 n = reply->read(buf, sizeof(buf));
+		if (n < 0) {
+			f.close();
+			QFile::remove(destPath);
+			return false;
+		}
+		if (n == 0)
+			break;
+		totalWritten += n;
+		if (totalWritten > maxBytes) {
+			qCritical() << "Update artifact exceeded size limit:" << destPath;
+			f.close();
+			QFile::remove(destPath);
+			return false;
+		}
+		if (f.write(buf, n) != n) {
+			qCritical() << "Short write on update artifact:" << destPath;
+			f.close();
+			QFile::remove(destPath);
+			return false;
+		}
+	}
+
+	if (totalWritten < minBytes || !f.flush()) {
+		f.close();
+		QFile::remove(destPath);
+		return false;
+	}
+	f.close();
+	return true;
+}
+} // namespace
+#endif
+
 void UpdatesProcessor::loadUpdate(UpdateInfo& info)
 {
 #ifdef Q_OS_WIN
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "fetching" << info.pkgUrl;
 	if (info.pkgUrl.isEmpty() || info.sigUrl.isEmpty()) {
 		qCritical() << Q_FUNC_INFO << "UpdateInfo is missing required links";
+		return;
+	}
+
+	QUrl pkgUrlParsed;
+	QUrl sigUrlParsed;
+	if (!isAllowedHttpsUrl(info.pkgUrl, pkgUrlParsed) || !isAllowedHttpsUrl(info.sigUrl, sigUrlParsed)) {
+		qCritical() << Q_FUNC_INFO << "Rejected non-HTTPS or invalid update package/signature URL";
 		return;
 	}
 
@@ -111,7 +183,7 @@ void UpdatesProcessor::loadUpdate(UpdateInfo& info)
 		_reply = NULL;
 	}
 
-	QNetworkRequest request(QUrl(info.pkgUrl));
+	QNetworkRequest request(pkgUrlParsed);
 	request.setSslConfiguration(QSslConfiguration::defaultConfiguration());
 #if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
 	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -122,6 +194,13 @@ void UpdatesProcessor::loadUpdate(UpdateInfo& info)
 #endif
 
 	_reply = _networkMan.get(request);
+	QNetworkReply* pkgReply = _reply;
+	connect(pkgReply, &QNetworkReply::downloadProgress, this, [pkgReply](qint64 bytesReceived, qint64 bytesTotal) {
+		if (bytesReceived > kMaxUpdatePkgBytes || bytesTotal > kMaxUpdatePkgBytes) {
+			qCritical() << "Aborting oversized update package download";
+			pkgReply->abort();
+		}
+	});
 	connect(_reply, &QNetworkReply::finished, this, &UpdatesProcessor::updatePgkLoaded);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
 	connect(_reply, &QNetworkReply::errorOccurred, this, &UpdatesProcessor::error);
@@ -137,22 +216,32 @@ void UpdatesProcessor::loadUpdate(UpdateInfo& info)
 #ifdef Q_OS_WIN
 void UpdatesProcessor::updatePgkLoaded()
 {
-	if (!(_reply->error() == QNetworkReply::NetworkError::NoError))
+	if (!_reply)
 		return;
+	if (_reply->error() != QNetworkReply::NetworkError::NoError) {
+		_reply->deleteLater();
+		_reply = NULL;
+		return;
+	}
 
 	DEBUG_MID_LEVEL << Q_FUNC_INFO << "fetching " << _sigUrl;
 
-	QFile f(QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe");
-	if (!f.open(QIODevice::WriteOnly)) {
-		qCritical() << Q_FUNC_INFO << "Failed to write update package";
-	}
-	f.write(_reply->readAll());
-	f.close();
-
+	const QString pkgPath = QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe";
+	const bool wrotePkg = writeReplyStreamSafely(_reply, pkgPath, kMaxUpdatePkgBytes, 1024);
 	_reply->deleteLater();
 	_reply = NULL;
+	if (!wrotePkg) {
+		qCritical() << Q_FUNC_INFO << "Failed to write update package";
+		return;
+	}
 
-	QNetworkRequest request = QNetworkRequest(QUrl(_sigUrl));
+	QUrl sigUrlParsed;
+	if (!isAllowedHttpsUrl(_sigUrl, sigUrlParsed)) {
+		QFile::remove(pkgPath);
+		return;
+	}
+
+	QNetworkRequest request = QNetworkRequest(sigUrlParsed);
 	request.setSslConfiguration(QSslConfiguration::defaultConfiguration());
 #if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
 	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -163,6 +252,13 @@ void UpdatesProcessor::updatePgkLoaded()
 #endif
 
 	_reply = _networkMan.get(request);
+	QNetworkReply* sigReply = _reply;
+	connect(sigReply, &QNetworkReply::downloadProgress, this, [sigReply](qint64 bytesReceived, qint64 bytesTotal) {
+		if (bytesReceived > kMaxUpdateSigBytes || bytesTotal > kMaxUpdateSigBytes) {
+			qCritical() << "Aborting oversized update signature download";
+			sigReply->abort();
+		}
+	});
 	connect(_reply, &QNetworkReply::finished, this, &UpdatesProcessor::updateSigLoaded);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
 	connect(_reply, &QNetworkReply::errorOccurred, this, &UpdatesProcessor::error);
@@ -173,19 +269,24 @@ void UpdatesProcessor::updatePgkLoaded()
 
 void UpdatesProcessor::updateSigLoaded()
 {
-	if (!(_reply->error() == QNetworkReply::NetworkError::NoError))
+	if (!_reply)
 		return;
+	if (_reply->error() != QNetworkReply::NetworkError::NoError) {
+		_reply->deleteLater();
+		_reply = NULL;
+		return;
+	}
 	DEBUG_MID_LEVEL << Q_FUNC_INFO;
 
-	QFile f(QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe.sig");
-	if (!f.open(QIODevice::WriteOnly)) {
-		qCritical() << Q_FUNC_INFO << "Failed to write update signature";
-	}
-	f.write(_reply->readAll());
-	f.close();
-
+	const QString sigPath = QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe.sig";
+	const bool wroteSig = writeReplyStreamSafely(_reply, sigPath, kMaxUpdateSigBytes, 64);
 	_reply->deleteLater();
 	_reply = NULL;
+	if (!wroteSig) {
+		qCritical() << Q_FUNC_INFO << "Failed to write update signature";
+		QFile::remove(QDir::tempPath() + "\\PsiegUpdateElevate_Prismatik.exe");
+		return;
+	}
 
 	// TODO: ensure user is not using the program
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << "triggering update process";

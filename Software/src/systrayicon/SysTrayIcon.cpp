@@ -234,8 +234,17 @@ void SysTrayIcon::onCheckUpdate_Finished()
 				return;
 			}
 #endif
-			_trayMessage = SysTrayIcon::MessageGeneric;
-			_trayMsgUrl = QUrl(update.url);
+			const QUrl candidateUrl(update.url, QUrl::StrictMode);
+			if (candidateUrl.isValid() &&
+				candidateUrl.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) == 0 &&
+				!candidateUrl.host().isEmpty())
+			{
+				_trayMessage = SysTrayIcon::MessageGeneric;
+				_trayMsgUrl = candidateUrl;
+			} else {
+				_trayMessage = SysTrayIcon::MessageNoAction;
+				_trayMsgUrl = QUrl();
+			}
 			_qsystray->showMessage(update.title, update.text);
 		}
 	}
@@ -262,7 +271,12 @@ void SysTrayIcon::onTrayIcon_MessageClicked()
 			}
 			break;
 		case SysTrayIcon::MessageGeneric:
-			QDesktopServices::openUrl(_trayMsgUrl);
+			if (_trayMsgUrl.isValid() &&
+				_trayMsgUrl.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) == 0 &&
+				!_trayMsgUrl.host().isEmpty())
+			{
+				QDesktopServices::openUrl(_trayMsgUrl);
+			}
 			break;
 
 		default:
