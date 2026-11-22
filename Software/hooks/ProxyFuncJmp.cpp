@@ -41,41 +41,46 @@ void *allocateNearAbsoluteJumpTrampoline(uintptr_t targetEnd, void *absDest) {
 		return mem;
 	};
 
-	// Search upward from targetEnd first, then downward from targetEnd
-	for (uintptr_t addr = targetEnd & ~(gran - 1); addr <= maxAddr; ) {
-		MEMORY_BASIC_INFORMATION mbi = {};
-		if (VirtualQuery(reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)) == 0)
-			break;
-		if (mbi.State == MEM_FREE) {
-			const uintptr_t alignedBase = (reinterpret_cast<uintptr_t>(mbi.BaseAddress) + gran - 1) & ~(gran - 1);
-			const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
-			if (alignedBase >= minAddr && alignedBase <= maxAddr && alignedBase + 64 <= regionEnd) {
-				if (void *p = tryAllocateAt(alignedBase))
-					return p;
+	for (int attempt = 0; attempt < 3; ++attempt) {
+		// Search upward from targetEnd first, then downward from targetEnd
+		for (uintptr_t addr = targetEnd & ~(gran - 1); addr <= maxAddr; ) {
+			MEMORY_BASIC_INFORMATION mbi = {};
+			if (VirtualQuery(reinterpret_cast<LPCVOID>(addr), &mbi, sizeof(mbi)) == 0)
+				break;
+			if (mbi.State == MEM_FREE) {
+				const uintptr_t alignedBase = (reinterpret_cast<uintptr_t>(mbi.BaseAddress) + gran - 1) & ~(gran - 1);
+				const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+				if (alignedBase >= minAddr && alignedBase <= maxAddr && alignedBase + 64 <= regionEnd) {
+					if (void *p = tryAllocateAt(alignedBase))
+						return p;
+				}
 			}
+			const uintptr_t next = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+			if (next <= addr)
+				break;
+			addr = next;
 		}
-		const uintptr_t next = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
-		if (next <= addr)
-			break;
-		addr = next;
-	}
 
-	for (uintptr_t probe = (targetEnd > gran) ? ((targetEnd - gran) & ~(gran - 1)) : 0; probe >= minAddr; ) {
-		MEMORY_BASIC_INFORMATION mbi = {};
-		if (VirtualQuery(reinterpret_cast<LPCVOID>(probe), &mbi, sizeof(mbi)) == 0)
-			break;
-		if (mbi.State == MEM_FREE) {
-			const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
-			const uintptr_t cand = (regionEnd >= gran) ? ((regionEnd - gran) & ~(gran - 1)) : 0;
-			if (cand >= reinterpret_cast<uintptr_t>(mbi.BaseAddress) && cand >= minAddr && cand <= maxAddr) {
-				if (void *p = tryAllocateAt(cand))
-					return p;
+		for (uintptr_t probe = (targetEnd > gran) ? ((targetEnd - gran) & ~(gran - 1)) : 0; probe >= minAddr; ) {
+			MEMORY_BASIC_INFORMATION mbi = {};
+			if (VirtualQuery(reinterpret_cast<LPCVOID>(probe), &mbi, sizeof(mbi)) == 0)
+				break;
+			if (mbi.State == MEM_FREE) {
+				const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+				const uintptr_t cand = (regionEnd >= gran) ? ((regionEnd - gran) & ~(gran - 1)) : 0;
+				if (cand >= reinterpret_cast<uintptr_t>(mbi.BaseAddress) && cand >= minAddr && cand <= maxAddr) {
+					if (void *p = tryAllocateAt(cand))
+						return p;
+				}
 			}
+			const uintptr_t base = reinterpret_cast<uintptr_t>(mbi.BaseAddress);
+			if (base < gran || base <= minAddr)
+				break;
+			probe = (base - gran) & ~(gran - 1);
 		}
-		const uintptr_t base = reinterpret_cast<uintptr_t>(mbi.BaseAddress);
-		if (base < gran || base <= minAddr)
-			break;
-		probe = (base - gran) & ~(gran - 1);
+
+		if (attempt + 1 < 3)
+			Sleep(0);
 	}
 
 	return nullptr;
