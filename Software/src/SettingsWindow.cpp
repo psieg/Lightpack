@@ -44,6 +44,9 @@
 #include <QStringBuilder>
 #include <QScrollBar>
 #include <QMessageBox>
+#ifdef Q_OS_WIN
+#include "WinUtils.hpp"
+#endif
 #include "PrismatikMath.hpp"
 
 using namespace SettingsScope;
@@ -635,7 +638,25 @@ void SettingsWindow::onOpenLogs_clicked()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-	QDesktopServices::openUrl(QUrl(LogWriter::getLogsDir().absolutePath()));
+	const QString logsPath = QDir::toNativeSeparators(LogWriter::getLogsDir().absolutePath());
+#ifdef Q_OS_WIN
+	const DWORD attrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(logsPath.utf16()));
+	if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+		qWarning() << Q_FUNC_INFO << "Refusing to open missing or reparse-point logs directory:" << logsPath;
+		return;
+	}
+	if (WinUtils::IsUserAdmin()) {
+		wchar_t winDir[MAX_PATH] = {};
+		if (GetWindowsDirectoryW(winDir, MAX_PATH) > 0) {
+			const QString explorerExe = QString::fromWCharArray(winDir) + QStringLiteral("\\explorer.exe");
+			if (!Plugin::launchProgramUnelevatedDetached(explorerExe, QStringList() << logsPath, logsPath)) {
+				qWarning() << Q_FUNC_INFO << "Refused to launch elevated Explorer for logs directory";
+			}
+		}
+		return;
+	}
+#endif
+	QDesktopServices::openUrl(QUrl::fromLocalFile(LogWriter::getLogsDir().absolutePath()));
 }
 
 void SettingsWindow::setDeviceLockViaAPI(const DeviceLocked::DeviceLockStatus status,	const QList<QString>& modules)
@@ -1578,13 +1599,31 @@ void SettingsWindow::openFile(const QString &filePath)
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
 
-	QString filePrefix = QStringLiteral("file://");
-
 #ifdef Q_OS_WIN
-	filePrefix = QStringLiteral("file:///");
+	const QString nativeFile = QDir::toNativeSeparators(QFileInfo(filePath).absoluteFilePath());
+	const QString nativeParent = QDir::toNativeSeparators(QFileInfo(nativeFile).absolutePath());
+	const DWORD fileAttrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(nativeFile.utf16()));
+	const DWORD dirAttrs = GetFileAttributesW(reinterpret_cast<LPCWSTR>(nativeParent.utf16()));
+	if (fileAttrs == INVALID_FILE_ATTRIBUTES || dirAttrs == INVALID_FILE_ATTRIBUTES ||
+		(fileAttrs & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0 ||
+		(dirAttrs & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+	{
+		qWarning() << Q_FUNC_INFO << "Refusing to open missing or reparse-point file:" << nativeFile;
+		return;
+	}
+	if (WinUtils::IsUserAdmin()) {
+		wchar_t sysDir[MAX_PATH] = {};
+		if (GetSystemDirectoryW(sysDir, MAX_PATH) > 0) {
+			const QString notepadExe = QString::fromWCharArray(sysDir) + QStringLiteral("\\notepad.exe");
+			if (!Plugin::launchProgramUnelevatedDetached(notepadExe, QStringList() << nativeFile, nativeParent)) {
+				qWarning() << Q_FUNC_INFO << "Refused to open file with elevated process";
+			}
+		}
+		return;
+	}
 #endif
 
-	QDesktopServices::openUrl(QUrl(filePrefix + filePath, QUrl::TolerantMode));
+	QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
 }
 
 // ----------------------------------------------------------------------------

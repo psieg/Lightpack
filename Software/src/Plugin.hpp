@@ -29,6 +29,10 @@ public:
 	void setPriority(int priority);
 	int getPriority() const;
 
+#if defined(Q_OS_WIN)
+	static bool launchProgramUnelevatedDetached(const QString &program, const QStringList &arguments, const QString &workingDir = QString());
+#endif
+
 
 signals:
 	void pluginStateChanged(QProcess::ProcessState newState);

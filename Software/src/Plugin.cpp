@@ -218,6 +218,62 @@ QString resolvePluginExecutable(const QString &program, const QString &workingDi
 	return QString();
 }
 
+bool isTokenServiceOrSystemAccount(HANDLE hToken)
+{
+	DWORD needed = 0;
+	GetTokenInformation(hToken, TokenUser, NULL, 0, &needed);
+	if (needed == 0)
+		return true;
+	std::vector<BYTE> buf(needed, 0);
+	if (!GetTokenInformation(hToken, TokenUser, buf.data(), needed, &needed))
+		return true;
+	const TOKEN_USER *tu = reinterpret_cast<const TOKEN_USER *>(buf.data());
+	if (!tu->User.Sid || !IsValidSid(tu->User.Sid))
+		return true;
+	return IsWellKnownSid(tu->User.Sid, WinLocalSystemSid) ||
+		IsWellKnownSid(tu->User.Sid, WinLocalServiceSid) ||
+		IsWellKnownSid(tu->User.Sid, WinNetworkServiceSid);
+}
+
+bool verifySaferTokenNonAdminMediumIl(HANDLE hPrimaryToken)
+{
+	if (isTokenServiceOrSystemAccount(hPrimaryToken))
+		return false;
+
+	// Verify Integrity Level <= Medium (0x2000)
+	DWORD ilLen = 0;
+	GetTokenInformation(hPrimaryToken, TokenIntegrityLevel, NULL, 0, &ilLen);
+	if (ilLen == 0)
+		return false;
+	std::vector<BYTE> ilBuf(ilLen, 0);
+	if (!GetTokenInformation(hPrimaryToken, TokenIntegrityLevel, ilBuf.data(), ilLen, &ilLen))
+		return false;
+	const TOKEN_MANDATORY_LABEL *pTml = reinterpret_cast<const TOKEN_MANDATORY_LABEL *>(ilBuf.data());
+	if (!pTml->Label.Sid || !IsValidSid(pTml->Label.Sid) || *GetSidSubAuthorityCount(pTml->Label.Sid) == 0)
+		return false;
+	const DWORD ilRid = *GetSidSubAuthority(pTml->Label.Sid, *GetSidSubAuthorityCount(pTml->Label.Sid) - 1);
+	if (ilRid > SECURITY_MANDATORY_MEDIUM_RID)
+		return false;
+
+	// Verify Builtin Administrators SID is disabled (deny-only) or absent
+	HANDLE hImpToken = NULL;
+	if (!DuplicateToken(hPrimaryToken, SecurityIdentification, &hImpToken))
+		return false;
+
+	SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
+	PSID pAdminsSid = NULL;
+	BOOL isMember = TRUE;
+	bool nonAdmin = false;
+	if (AllocateAndInitializeSid(&ntAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &pAdminsSid)) {
+		if (CheckTokenMembership(hImpToken, pAdminsSid, &isMember) && !isMember) {
+			nonAdmin = true;
+		}
+		FreeSid(pAdminsSid);
+	}
+	CloseHandle(hImpToken);
+	return nonAdmin;
+}
+
 bool isProcessUnelevated(HANDLE hProcess)
 {
 	HANDLE hToken = NULL;
@@ -362,17 +418,33 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 	}
 
 	// Strategy 3: Fallback when shell window is absent — compute a NormalUser SAFER token forced to Medium Integrity.
+	// Refuse Strategy 3 if running as SYSTEM/Service (a SAFER token from SYSTEM retains TokenUser == S-1-5-18).
+	{
+		HANDLE hSelfQuery = NULL;
+		const bool isServiceCaller = !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hSelfQuery) || isTokenServiceOrSystemAccount(hSelfQuery);
+		if (hSelfQuery)
+			CloseHandle(hSelfQuery);
+		if (isServiceCaller)
+			return false;
+	}
+
 	SAFER_LEVEL_HANDLE hSafer = NULL;
 	if (SaferCreateLevel(SAFER_SCOPEID_USER, SAFER_LEVELID_NORMALUSER, SAFER_LEVEL_OPEN, &hSafer, NULL)) {
 		HANDLE hReducedToken = NULL;
 		if (SaferComputeTokenFromLevel(hSafer, NULL, &hReducedToken, 0, NULL)) {
 			PSID pMediumSid = NULL;
-			if (ConvertStringSidToSidW(L"S-1-16-8192", &pMediumSid)) {
+			bool ilSetOk = false;
+			if (ConvertStringSidToSidW(L"S-1-16-8192", &pMediumSid) && pMediumSid) {
 				TOKEN_MANDATORY_LABEL tml = {};
 				tml.Label.Attributes = SE_GROUP_INTEGRITY;
 				tml.Label.Sid = pMediumSid;
-				SetTokenInformation(hReducedToken, TokenIntegrityLevel, &tml, sizeof(tml) + GetLengthSid(pMediumSid));
+				ilSetOk = SetTokenInformation(hReducedToken, TokenIntegrityLevel, &tml, sizeof(TOKEN_MANDATORY_LABEL)) != FALSE;
 				LocalFree(pMediumSid);
+			}
+			if (!ilSetOk || !verifySaferTokenNonAdminMediumIl(hReducedToken)) {
+				CloseHandle(hReducedToken);
+				SaferCloseLevel(hSafer);
+				return false;
 			}
 
 			HANDLE hSelfToken = NULL;
@@ -429,6 +501,21 @@ bool launchPluginUnelevatedWin32(const QString &program, const QStringList &argu
 }
 
 } // namespace
+
+bool Plugin::launchProgramUnelevatedDetached(const QString &program, const QStringList &arguments, const QString &workingDir)
+{
+	const QString effectiveWorkDir = workingDir.isEmpty() ? QCoreApplication::applicationDirPath() : workingDir;
+	if (!WinUtils::IsUserAdmin()) {
+		return QProcess::startDetached(program, arguments, effectiveWorkDir);
+	}
+	HANDLE hProc = NULL;
+	if (!launchPluginUnelevatedWin32(program, arguments, effectiveWorkDir, hProc)) {
+		return false;
+	}
+	if (hProc)
+		CloseHandle(hProc);
+	return true;
+}
 #endif
 
 void Plugin::Start()

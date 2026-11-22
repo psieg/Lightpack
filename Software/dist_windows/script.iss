@@ -21,6 +21,7 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={pf64}\Prismatik
+DisableDirPage=yes
 DefaultGroupName=Prismatik
 AllowNoIcons=true
 LicenseFile=gpl-3.0.txt
@@ -57,7 +58,7 @@ Source: "content/Qt5Network.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "content/Qt5SerialPort.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "content/Qt5Widgets.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "gpl-3.0.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "content/libraryinjector.dll"; DestDir: "{app}"; MinVersion: 6.1.7600; Flags: 32bit regserver ignoreversion
+Source: "content/libraryinjector.dll"; DestDir: "{app}"; MinVersion: 6.1.7600; Flags: 32bit ignoreversion
 Source: "content/offsetfinder.exe"; DestDir: "{app}"; MinVersion: 6.1.7600; Flags: 32bit ignoreversion
 Source: "content/prismatik-hooks.dll"; DestDir: "{app}"; MinVersion: 6.1.7600; Flags: ignoreversion
 Source: "content/prismatik-unhook.dll"; DestDir: "{app}"; MinVersion: 6.1.7600; Flags: ignoreversion
@@ -91,12 +92,12 @@ Name: "{commonstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: 
 Filename: "{app}\UpdateElevate"; Parameters: "install"; Flags: runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 Filename: "https://github.com/psieg/Lightpack/wiki"; Description: "{cm:OpenWiki}"; Flags: postinstall unchecked shellexec skipifsilent runasoriginaluser
-Filename: "schtasks"; Parameters: "/create /f /RU Administrators /RL HIGHEST /SC onlogon /TN ""Prismatik with Admin Rights"" /TR ""\""{app}\{#MyAppExeName}\"""""; Tasks: adminstartuptask; Flags: runhidden
-Filename: "schtasks"; Parameters: "/delete /f /TN ""Prismatik with Admin Rights"""; Tasks: not adminstartuptask; Flags: runhidden
+Filename: "{sys}\schtasks.exe"; Parameters: "/create /f /RU Administrators /RL HIGHEST /SC onlogon /TN ""Prismatik with Admin Rights"" /TR ""\""{app}\{#MyAppExeName}\"""""; Tasks: adminstartuptask; Flags: runhidden
+Filename: "{sys}\schtasks.exe"; Parameters: "/delete /f /TN ""Prismatik with Admin Rights"""; Tasks: not adminstartuptask; Flags: runhidden
 
 [UninstallRun]
 Filename: "{app}\UpdateElevate"; Parameters: "uninstall"; Flags: runhidden
-Filename: "schtasks"; Parameters: "/delete /f /TN ""Prismatik with Admin Rights"""; Flags: runhidden
+Filename: "{sys}\schtasks.exe"; Parameters: "/delete /f /TN ""Prismatik with Admin Rights"""; Flags: runhidden
 
 [UninstallDelete]
 Name: "{app}\*.*"; Type: filesandordirs
