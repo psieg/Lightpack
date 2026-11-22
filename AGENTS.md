@@ -6,7 +6,7 @@
 |---|---|---|
 | **C++17 Toolchain** | Visual Studio 2022+ ("Desktop development with C++") | System C++ compiler (`g++` / `clang++`), `make`, `pkg-config` (Linux), platform SDK |
 | **Qt SDK (Qt 6.x)** | MSVC 64-bit kit (with `SerialPort`) | Qt base, tools, and `SerialPort` dev packages / frameworks |
-| **OpenSSL** *(optional, for update check)* | Win64 **3.x** (e.g. `<QT_ROOT>\Tools\OpenSSLv3\Win_x64\bin` or `<OPENSSL_ROOT>\bin`) | System OpenSSL package / library |
+| **TLS / Crypto** *(for update check)* | Built-in Windows Schannel & CNG (no OpenSSL required) | System OpenSSL package / library |
 | **Sound Visualizer** *(optional)* | BASS + BASSWASAPI (`<BASS_DIR>`, `<BASSWASAPI_DIR>`) | Platform audio/FFT libs (e.g. PulseAudio + FFTW3 on Linux; built-in on macOS) |
 | **Platform Libraries** | Included in Windows SDK | USB / device headers as required by OS (e.g. `libusb`, `libudev` on Linux) |
 
@@ -25,13 +25,12 @@ Copy `build-vars.prf.default` to `build-vars.prf` and adjust the section for you
 
 ```ini
 # Example (win32 block):
-OPENSSL_DIR = "<path-to-openssl-bin>"
 BASS_DIR = "<path-to-bass>"
 BASSWASAPI_DIR = "<path-to-basswasapi>"
 TARGET_ARCH = x86_64
 ```
 
-*(Comment out optional `DEFINES` such as `NO_OPENSSL`, `BASS_SOUND_SUPPORT`, `NIGHTLIGHT_SUPPORT`, or `PULSEAUDIO_SUPPORT` if skipping those dependencies.)*
+*(Comment out optional `DEFINES` such as `BASS_SOUND_SUPPORT`, `NIGHTLIGHT_SUPPORT`, or `PULSEAUDIO_SUPPORT` if skipping those dependencies.)*
 
 **2. Generate project / Makefiles & Build**
 
@@ -47,4 +46,4 @@ Build output lands in `Software/bin/`.
 ## Notes
 
 - A `git not found` message during `qmake` is harmless — `GIT_REVISION` simply stays undefined.
-- On Windows with Qt 6, `windeployqt` runs with `--force-openssl` (unless `NO_OPENSSL` is defined) to deploy `qopensslbackend.dll`, and the post-link step copies the OpenSSL runtime DLLs directly from `OPENSSL_DIR` into `Software/bin/` (prebuilt Qt 6 `qopensslbackend.dll` expects OpenSSL 3.x at runtime).
+- On Windows with Qt 6, `windeployqt` deploys the native `qschannelbackend.dll` TLS plugin by default (no OpenSSL runtime DLLs required), and `UpdateElevate` verifies update signatures via native Windows CNG (`bcrypt.dll` / `crypt32.dll`).
