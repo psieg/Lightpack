@@ -113,10 +113,12 @@ See #280 for details.
 ### Build Instructions for Linux
 #### Prerequisites:
 You will need the following packages, usually all of them are in distro's repository:
-* `qtbase5-dev`
-* `qtchooser`
-* `qttools5-dev-tools`
-* `libqt5serialport5-dev`
+* `qt6-base-dev`
+* `qt6-base-dev-tools`
+* `qmake6`
+* `qt6-l10n-tools`
+* `qt6-tools-dev-tools`
+* `libqt6serialport6-dev` (or `qt6-serialport-dev`)
 * `build-essential`
 * `pkg-config`
 * `libusb-1.0-0-dev`
@@ -131,7 +133,7 @@ _(this is a Debian based example, see Software/dist_linux/*/Dockerfile for your 
 #### Build Process:
 1. Go to `<repo>/Software`
 2. Optional: if locales changed: run `./update_locales.sh`
-3. Run `qmake -r`
+3. Run `qmake6 -r` (or `qmake -r`)
 4. Run `make`
 5. Resulting binary will be in `<repo>/Software/bin`
 
@@ -146,8 +148,8 @@ You can also target a different distribution / backend combination via docker (t
 1. `cd Software/dist_linux`
 2. Run `./build-in-docker.sh` to list backends
 3. Run `./build-in-docker.sh <package-backend> <os-image-name> <os-image-tag>`:
-    * `./build-in-docker.sh dpkg debian 10.6`
-    * `./build-in-docker.sh dpkg ubuntu 18.04`
+    * `./build-in-docker.sh dpkg debian 12`
+    * `./build-in-docker.sh dpkg ubuntu 24.04`
     * `./build-in-docker.sh pacman archlinux latest`
 4. Resulting package should be in `<package-backend>/` folder
 
@@ -156,8 +158,7 @@ _(`os-iamge-name`/`os-image-tag` should be available on hub.docker.com or existi
 #### Manual Deployment:
 Instead of building a deb package, you can:
 
-1. Add a rule for **UDEV**. See comments from `<repo>/Software/dist_linux/deb/etc/udev/rules.d/93-lightpack.rules` for how to do it.
-2. Make sure `<repo>/Software/qtserialport/libQt5SerialPort.so.5` is available for loading by *Prismatik* (place it in appropriate dir or use *LD_LIBRARY_PATH* variable)
+1. Add a rule for **UDEV**. See comments from `<repo>/Software/dist_linux/package_template/etc/udev/rules.d/93-lightpack.rules` for how to do it.
 
 ---
 

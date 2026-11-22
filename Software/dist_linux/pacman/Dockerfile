@@ -10,9 +10,9 @@ RUN pacman -Syu --noconfirm && pacman -S --noconfirm \
     libusb \
     lsb-release \
     namcap \
-    qt5-base \
-    qt5-serialport \
-    qt5-tools \
+    qt6-base \
+    qt6-serialport \
+    qt6-tools \
     && (yes | pacman -Scc) \
     && rm -rf /etc/localtime
 

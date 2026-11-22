@@ -5,7 +5,7 @@ pkgdesc="A controller for usb driven LED backlights (an unofficial fork)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/psieg/Lightpack"
 license=('GPL3')
-depends=('qt5-serialport' 'hicolor-icon-theme' __PULSEAUDIO_SUPPORT__)
+depends=('qt6-serialport' 'hicolor-icon-theme' __PULSEAUDIO_SUPPORT__)
 makedepends=('git' 'make' 'gcc')
 #checkdepends=('namcap')
 provides=('lightpack' 'prismatik' 'prismatik-bin' 'prismatik-git' 'prismatik-psieg' 'prismatik-psieg-git')
@@ -22,7 +22,7 @@ pkgver() {
 
 build() {
     cd ${_srcdir}
-    qmake -r
+    qmake6 -r
     make ${MAKEFLAGS}
 }
 

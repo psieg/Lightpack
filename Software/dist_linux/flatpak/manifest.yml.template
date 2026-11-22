@@ -47,8 +47,8 @@ modules:
       env:
         PKG_TEMPLATE_DIR: Software/dist_linux/package_template
     build-commands:
-      - qmake -v
-      - cd Software && qmake -r
+      - qmake6 -v
+      - cd Software && qmake6 -r
       - cd Software && make -j$FLATPAK_BUILDER_N_JOBS
       - sed -E 's#(Icon)=.+#\1=de.psieg.Prismatik#;s#(Exec)=.+#\1=launch_prismatik.sh#' $PKG_TEMPLATE_DIR/usr/share/applications/prismatik.desktop > _prismatik.desktop
       - install -Dm644 _prismatik.desktop $FLATPAK_DEST/usr/share/applications/$FLATPAK_ID.desktop

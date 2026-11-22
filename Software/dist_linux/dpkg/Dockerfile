@@ -1,5 +1,5 @@
 ARG OS=ubuntu
-ARG RELEASE=20.04
+ARG RELEASE=24.04
 FROM $OS:$RELEASE
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt dist-upgrade -y && apt install -y \
@@ -9,14 +9,17 @@ RUN apt update && apt dist-upgrade -y && apt install -y \
     git \
     hashdeep \
     libfftw3-dev \
+    libgl-dev \
     libpulse-dev \
-    libqt5serialport5-dev \
+    libqt6serialport6-dev \
     libudev-dev \
     libusb-1.0-0-dev \
     lsb-release \
-    qtbase5-dev \
-    qtchooser \
-    qttools5-dev-tools \
+    qmake6 \
+    qt6-base-dev \
+    qt6-base-dev-tools \
+    qt6-l10n-tools \
+    qt6-tools-dev-tools \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /etc/localtime
 

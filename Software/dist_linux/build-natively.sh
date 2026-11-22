@@ -20,6 +20,7 @@ pkgmgr=$1
 echo $pkgmgr
 
 (which lsb_release 2> /dev/null) && lsb_release -a
+(which qmake6 2> /dev/null) && qmake6 -v
 (which qmake 2> /dev/null) && qmake -v
 (which g++ 2> /dev/null) && g++ -v
 (which clang++ 2> /dev/null) && clang++ -v

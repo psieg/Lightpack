@@ -14,14 +14,8 @@ CONFIG(msvc) {
 }
 DESTDIR     = ../bin
 TEMPLATE    = app
-QT         += network widgets
+QT         += network widgets serialport
 CONFIG += c++17
-win32 {
-    QT += serialport
-}
-macx {
-    QT += serialport
-}
 # QMake and GCC produce a lot of stuff
 OBJECTS_DIR = stuff
 MOC_DIR     = stuff
@@ -86,7 +80,6 @@ unix:!macx{
         PKGCONFIG += gtk+-2.0 appindicator-0.1 libnotify
     }
 
-    LIBS += -L../qtserialport/lib -lQt5SerialPort
     QMAKE_LFLAGS += -Wl,-rpath=/usr/lib/prismatik
 }
 

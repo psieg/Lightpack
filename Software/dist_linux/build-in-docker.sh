@@ -18,7 +18,7 @@ pkgmgr=dpkg
 os=ubuntu
 [ ! -z $2 ] && os=$2
 
-version=20.04
+version=24.04
 [ ! -z $3 ] && version=$3
 
 
