@@ -56,8 +56,14 @@ public:
 
 public slots:
 
+protected:
+	void changeEvent(QEvent *event) override;
+
 private:
+	void updateWizardStyle();
+
 	Ui::Wizard *_ui;
+	WizardStyle _defaultStyle;
 };
 
 #endif // WIZARD_HPP
