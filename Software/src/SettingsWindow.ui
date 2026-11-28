@@ -1494,6 +1494,65 @@ Internally emulates the effects of f.lux, redshift, Night Light, Night Shift...<
           </property>
          </widget>
         </item>
+        <item row="16" column="0" colspan="6">
+         <widget class="QGroupBox" name="groupBox_SerialPort">
+          <property name="title">
+           <string>Serial device</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_SerialPort">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_SerialPort">
+             <property name="text">
+              <string>Serial port:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="comboBox_SerialPort">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>Detected serial ports. You can also type a port name manually. Changes apply immediately.</string>
+             </property>
+             <property name="editable">
+              <bool>true</bool>
+             </property>
+             <property name="insertPolicy">
+              <enum>QComboBox::NoInsert</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QToolButton" name="toolButton_RefreshSerialPorts">
+             <property name="toolTip">
+              <string>Rescan serial ports</string>
+             </property>
+             <property name="text">
+              <string>Refresh</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_SerialBaudRate">
+             <property name="text">
+              <string>Baud rate:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QComboBox" name="comboBox_SerialBaudRate">
+             <property name="toolTip">
+              <string>Must match the baud rate of your device's firmware.</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
         <item row="17" column="0">
          <layout class="QHBoxLayout" name="horizontalLayout_8">
           <property name="bottomMargin">

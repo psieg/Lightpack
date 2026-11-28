@@ -42,6 +42,8 @@ public:
 
 public slots:
 	void open();
+	// Takes effect on the next open()
+	void setSerialPortSettings(const QString &portName, int baudRate);
 	void close();
 	void setColors(const QList<QRgb> & /*colors*/);
 	void switchOffLeds();

@@ -265,6 +265,7 @@ SOURCES += \
     LightpackApplication.cpp  main.cpp   SettingsWindow.cpp  Settings.cpp \
     GrabWidget.cpp  GrabConfigWidget.cpp \
     LogWriter.cpp \
+    SerialPortComboHelper.cpp \
     LedDeviceLightpack.cpp \
     LedDeviceAdalight.cpp \
     LedDeviceArdulight.cpp \
@@ -309,6 +310,7 @@ HEADERS += \
     SettingsWindow.hpp \
     Settings.hpp \
     SettingsDefaults.hpp \
+    SerialPortComboHelper.hpp \
     version.h \
     TimeEvaluations.hpp \
     GrabManager.hpp \

@@ -202,6 +202,13 @@ void LedDeviceAdalight::updateDeviceSettings()
 	AbstractLedDevice::updateDeviceSettings();
 }
 
+void LedDeviceAdalight::setSerialPortSettings(const QString &portName, int baudRate)
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO << portName << baudRate;
+	m_portName = portName;
+	m_baudRate = baudRate;
+}
+
 void LedDeviceAdalight::open()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO << sender();

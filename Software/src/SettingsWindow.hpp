@@ -239,6 +239,9 @@ private slots:
 	void onKeepLightsAfterScreenOff_Toggled(bool isEnabled);
 
 	void onRunConfigurationWizard_clicked();
+	void onRefreshSerialPorts_clicked();
+	void onSerialPort_changed();
+	void onSerialBaudRate_changed(int index);
 
 	void onCheckBox_checkForUpdates_Toggled(bool isEnabled);
 	void onCheckBox_installUpdates_Toggled(bool isEnabled);
@@ -247,6 +250,7 @@ private slots:
 
 private:
 	void updateDeviceTabWidgetsVisibility();
+	void updateSerialPortWidgets();
 	void setDeviceTabWidgetsVisibility(DeviceTab::Options options);
 	void syncLedDeviceWithSettingsWindow();
 	int getLigtpackFirmwareVersionMajor();

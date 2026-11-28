@@ -25,13 +25,11 @@
  */
 
 #include <QMessageBox>
-#include <QCollator>
-#include <QSerialPortInfo>
-#include <algorithm>
 
 #include "ConfigureDevicePage.hpp"
 #include "ui_ConfigureDevicePage.h"
 #include "Settings.hpp"
+#include "SerialPortComboHelper.hpp"
 #include "LedDeviceArdulight.hpp"
 #include "LedDeviceAdalight.hpp"
 #include "LedDeviceVirtual.hpp"
@@ -52,26 +50,12 @@ ConfigureDevicePage::ConfigureDevicePage(bool isInitFromSettings, TransientSetti
 
 QString ConfigureDevicePage::serialPortName() const
 {
-	const QComboBox *cb = ui->cbSerialPortName;
-	const QString text = cb->currentText().trimmed();
-	// A detected port is shown as "COM5 - USB-SERIAL CH340"; its port name is in the item data.
-	// Anything else was typed by hand and is used as-is.
-	const int idx = cb->findText(text);
-	if (idx >= 0)
-		return cb->itemData(idx).toString();
-	return text;
+	return SerialPortComboHelper::selectedPortName(ui->cbSerialPortName);
 }
 
 void ConfigureDevicePage::setSerialPortName(const QString &portName)
 {
-	QComboBox *cb = ui->cbSerialPortName;
-	const int idx = cb->findData(portName);
-	if (idx >= 0) {
-		cb->setCurrentIndex(idx);
-	} else {
-		cb->setCurrentIndex(-1);
-		cb->setEditText(portName);
-	}
+	SerialPortComboHelper::selectPortName(ui->cbSerialPortName, portName);
 }
 
 void ConfigureDevicePage::refreshSerialPorts()
@@ -81,59 +65,7 @@ void ConfigureDevicePage::refreshSerialPorts()
 
 void ConfigureDevicePage::populateSerialPorts(const QString &preferredPort, const bool preferredIsDefault)
 {
-	QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
-
-	// USB serial adapters (Arduino, CH340, FTDI, CP210x...) first, then by port name in natural order (COM2 < COM10)
-	QCollator collator;
-	collator.setNumericMode(true);
-	collator.setCaseSensitivity(Qt::CaseInsensitive);
-	std::sort(ports.begin(), ports.end(), [&collator](const QSerialPortInfo &a, const QSerialPortInfo &b) {
-		if (a.hasVendorIdentifier() != b.hasVendorIdentifier())
-			return a.hasVendorIdentifier();
-		return collator.compare(a.portName(), b.portName()) < 0;
-	});
-
-	QComboBox *cb = ui->cbSerialPortName;
-	const QSignalBlocker blocker(cb);
-	cb->clear();
-
-	int preferredIdx = -1;
-	int firstUsbIdx = -1;
-	for (const QSerialPortInfo &port : std::as_const(ports)) {
-		const QString description = port.description().isEmpty() ? port.manufacturer() : port.description();
-		const QString label = description.isEmpty() ? port.portName() : port.portName() + QStringLiteral(" - ") + description;
-
-		QStringList tooltip;
-		tooltip << port.systemLocation();
-		if (!port.manufacturer().isEmpty())
-			tooltip << port.manufacturer();
-		if (port.hasVendorIdentifier() && port.hasProductIdentifier())
-			tooltip << QStringLiteral("VID:PID %1:%2")
-				.arg(port.vendorIdentifier(), 4, 16, QLatin1Char('0'))
-				.arg(port.productIdentifier(), 4, 16, QLatin1Char('0')).toUpper();
-
-		const int idx = cb->count();
-		cb->addItem(label, port.portName());
-		cb->setItemData(idx, tooltip.join(QLatin1Char('\n')), Qt::ToolTipRole);
-
-		if (preferredIdx < 0 && port.portName().compare(preferredPort, Qt::CaseInsensitive) == 0)
-			preferredIdx = idx;
-		if (firstUsbIdx < 0 && port.hasVendorIdentifier())
-			firstUsbIdx = idx;
-	}
-
-	// Keep the configured port if it is connected, unless it is just the built-in default
-	// and a USB serial adapter is present. If the configured port is gone (e.g. the device
-	// was re-plugged and got a new number), pick the first USB serial adapter instead.
-	if (preferredIdx >= 0 && !(preferredIsDefault && firstUsbIdx >= 0))
-		cb->setCurrentIndex(preferredIdx);
-	else if (firstUsbIdx >= 0)
-		cb->setCurrentIndex(firstUsbIdx);
-	else if (!preferredPort.isEmpty())
-		setSerialPortName(preferredPort);
-	else if (cb->count() > 0)
-		cb->setCurrentIndex(0);
-
+	SerialPortComboHelper::populate(ui->cbSerialPortName, preferredPort, preferredIsDefault);
 	emit serialPortNameChanged();
 }
 

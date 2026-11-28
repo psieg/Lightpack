@@ -132,6 +132,40 @@ void LedDeviceManager::recreateLedDevice()
 	initLedDevice();
 }
 
+void LedDeviceManager::updateSerialPortSettings()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	if (m_isSerialPortUpdatePending)
+		return;
+	m_isSerialPortUpdatePending = true;
+	QMetaObject::invokeMethod(this, "applySerialPortSettings", Qt::QueuedConnection);
+}
+
+void LedDeviceManager::applySerialPortSettings()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	m_isSerialPortUpdatePending = false;
+
+	// Devices are cached per type and get their port when created, so update the
+	// cached instances. Queued to the device thread ahead of the close/open below.
+	if (AbstractLedDevice *adalight = m_ledDevices[SupportedDevices::DeviceTypeAdalight])
+		QMetaObject::invokeMethod(adalight, "setSerialPortSettings", Qt::QueuedConnection,
+			Q_ARG(QString, Settings::getAdalightSerialPortName()),
+			Q_ARG(int, Settings::getAdalightSerialPortBaudRate()));
+	if (AbstractLedDevice *ardulight = m_ledDevices[SupportedDevices::DeviceTypeArdulight])
+		QMetaObject::invokeMethod(ardulight, "setSerialPortSettings", Qt::QueuedConnection,
+			Q_ARG(QString, Settings::getArdulightSerialPortName()),
+			Q_ARG(int, Settings::getArdulightSerialPortBaudRate()));
+
+	// While sleeping the device is reopened with the new settings on wake-up
+	if (Settings::isConnectedDeviceUsesSerialPort() && !m_isSleeping) {
+		m_failedCreationAttempts = 0;
+		recreateLedDevice();
+	}
+}
+
 void LedDeviceManager::switchOnLeds()
 {
 	DEBUG_LOW_LEVEL << Q_FUNC_INFO;

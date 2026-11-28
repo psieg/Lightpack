@@ -79,6 +79,9 @@ public slots:
 	void init();
 
 	void recreateLedDevice();
+	// Pushes the configured serial port / baud rate to the serial devices and reconnects.
+	// Several calls in a row are coalesced into one reconnect.
+	void updateSerialPortSettings();
 
 	// This slots are protected from the overflow of queries
 	void setColors(const QList<QRgb> & colors);
@@ -101,6 +104,7 @@ public slots:
 	void onSessionChange(SystemSession::Status status);
 
 private slots:
+	void applySerialPortSettings();
 	void ledDeviceCommandCompleted(bool ok);
 	void ledDeviceCommandTimedOut();
 	void ledDeviceOpenTimedOut();
@@ -140,6 +144,7 @@ private:
 	QHash<AbstractLedDevice *, int> m_pendingOpens;
 	int m_consecutiveOpenTimeouts{ 0 };
 	bool m_isSleeping{ false };
+	bool m_isSerialPortUpdatePending{ false };
 	bool m_isLastCommandCompleted{ true };
 	bool m_isColorsSaved{ false };
 	bool m_firmwareVersionRequested{ false };
