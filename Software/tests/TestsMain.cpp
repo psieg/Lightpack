@@ -20,7 +20,9 @@ unsigned g_debugLevel = Debug::LowLevel;
 
 int main(int argc, char *argv[])
 {
+#ifdef QTEST_DISABLE_KEYPAD_NAVIGATION // removed in Qt 6.12
 	QTEST_DISABLE_KEYPAD_NAVIGATION
+#endif
 	QApplication app(argc, argv);
 
 	QList<QObject *> tests;
