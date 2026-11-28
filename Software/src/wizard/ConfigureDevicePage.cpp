@@ -29,6 +29,7 @@
 #include "ConfigureDevicePage.hpp"
 #include "ui_ConfigureDevicePage.h"
 #include "Settings.hpp"
+#include "SerialPortComboHelper.hpp"
 #include "LedDeviceArdulight.hpp"
 #include "LedDeviceAdalight.hpp"
 #include "LedDeviceVirtual.hpp"
@@ -42,6 +43,30 @@ ConfigureDevicePage::ConfigureDevicePage(bool isInitFromSettings, TransientSetti
 	ui(new Ui::ConfigureDevicePage)
 {
 	ui->setupUi(this);
+
+	connect(ui->tbRefreshSerialPorts, &QToolButton::clicked, this, &ConfigureDevicePage::refreshSerialPorts);
+	connect(ui->cbSerialPortName, &QComboBox::currentTextChanged, this, &ConfigureDevicePage::serialPortNameChanged);
+}
+
+QString ConfigureDevicePage::serialPortName() const
+{
+	return SerialPortComboHelper::selectedPortName(ui->cbSerialPortName);
+}
+
+void ConfigureDevicePage::setSerialPortName(const QString &portName)
+{
+	SerialPortComboHelper::selectPortName(ui->cbSerialPortName, portName);
+}
+
+void ConfigureDevicePage::refreshSerialPorts()
+{
+	populateSerialPorts(serialPortName(), false);
+}
+
+void ConfigureDevicePage::populateSerialPorts(const QString &preferredPort, const bool preferredIsDefault)
+{
+	SerialPortComboHelper::populate(ui->cbSerialPortName, preferredPort, preferredIsDefault);
+	emit serialPortNameChanged();
 }
 
 void ConfigureDevicePage::initializePage()
@@ -67,12 +92,11 @@ void ConfigureDevicePage::initializePage()
 
 	if (currentBaudRate > 0)
 		ui->cbBaudRate->setCurrentText(QString::number(currentBaudRate));
-	if (!currentSerialPort.isEmpty())
-		ui->leSerialPortName->setText(currentSerialPort);
+	populateSerialPorts(currentSerialPort, currentSerialPort == QStringLiteral(SERIAL_PORT_DEFAULT));
 	if (!currentColorSequence.isEmpty())
 		ui->cbColorFormat->setCurrentText(currentColorSequence);
 
-	registerField(QStringLiteral("serialPort"), ui->leSerialPortName);
+	registerField(QStringLiteral("serialPort"), this, "serialPortName", SIGNAL(serialPortNameChanged()));
 	registerField(QStringLiteral("baudRate"), ui->cbBaudRate, "currentText");
 	registerField(QStringLiteral("colorFormat"), ui->cbColorFormat, "currentText");
 

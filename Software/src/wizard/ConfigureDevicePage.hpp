@@ -37,17 +37,30 @@ class ConfigureDevicePage;
 class ConfigureDevicePage : public QWizardPage, SettingsAwareTrait
 {
 	Q_OBJECT
+	Q_PROPERTY(QString serialPortName READ serialPortName WRITE setSerialPortName NOTIFY serialPortNameChanged)
 
 public:
 	explicit ConfigureDevicePage(bool isInitFromSettings, TransientSettings *ts, QWidget *parent = 0);
 	~ConfigureDevicePage();
 	int nextId() const;
+
+	QString serialPortName() const;
+	void setSerialPortName(const QString &portName);
+
+signals:
+	void serialPortNameChanged();
+
 protected:
 	void initializePage();
 	void cleanupPage();
 	bool validatePage();
 
+private slots:
+	void refreshSerialPorts();
+
 private:
+	void populateSerialPorts(const QString &preferredPort, bool preferredIsDefault);
+
 	Ui::ConfigureDevicePage *ui;
 };
 

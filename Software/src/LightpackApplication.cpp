@@ -735,6 +735,10 @@ void LightpackApplication::startLedDeviceManager()
 	connect(settings(), &Settings::ledCoefBlueChanged,			m_ledDeviceManager, &LedDeviceManager::updateWBAdjustments,				Qt::QueuedConnection);
 	connect(settings(), &Settings::ledCoefRedChanged,			m_ledDeviceManager, &LedDeviceManager::updateWBAdjustments,				Qt::QueuedConnection);
 	connect(settings(), &Settings::ledCoefGreenChanged,		m_ledDeviceManager, &LedDeviceManager::updateWBAdjustments,				Qt::QueuedConnection);
+	connect(settings(), &Settings::adalightSerialPortNameChanged,		m_ledDeviceManager, &LedDeviceManager::updateSerialPortSettings,		Qt::QueuedConnection);
+	connect(settings(), &Settings::adalightSerialPortBaudRateChanged,	m_ledDeviceManager, &LedDeviceManager::updateSerialPortSettings,		Qt::QueuedConnection);
+	connect(settings(), &Settings::ardulightSerialPortNameChanged,		m_ledDeviceManager, &LedDeviceManager::updateSerialPortSettings,		Qt::QueuedConnection);
+	connect(settings(), &Settings::ardulightSerialPortBaudRateChanged,	m_ledDeviceManager, &LedDeviceManager::updateSerialPortSettings,		Qt::QueuedConnection);
 
 
 	if (!m_noGui)

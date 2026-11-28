@@ -33,6 +33,7 @@
 #include "ui_SettingsWindow.h"
 
 #include "Settings.hpp"
+#include "SerialPortComboHelper.hpp"
 #include "ColorButton.hpp"
 #include "LedDeviceManager.hpp"
 #include "enums.hpp"
@@ -276,6 +277,10 @@ void SettingsWindow::connectSignalsSlots()
 	connect(ui->checkBox_SendDataOnlyIfColorsChanges, &QCheckBox::toggled, this, &SettingsWindow::onDeviceSendDataOnlyIfColorsChanged_toggled);
 
 	connect(ui->pbRunConfigurationWizard, &QPushButton::clicked, this, &SettingsWindow::onRunConfigurationWizard_clicked);
+	connect(ui->toolButton_RefreshSerialPorts, &QToolButton::clicked, this, &SettingsWindow::onRefreshSerialPorts_clicked);
+	connect(ui->comboBox_SerialPort, qOverload<int>(&QComboBox::activated), this, &SettingsWindow::onSerialPort_changed);
+	connect(ui->comboBox_SerialPort->lineEdit(), &QLineEdit::editingFinished, this, &SettingsWindow::onSerialPort_changed);
+	connect(ui->comboBox_SerialBaudRate, qOverload<int>(&QComboBox::activated), this, &SettingsWindow::onSerialBaudRate_changed);
 
 	// Open Settings file
 	connect(ui->commandLinkButton_OpenSettings, &QCommandLinkButton::clicked, this, &SettingsWindow::openCurrentProfile);
@@ -463,7 +468,84 @@ void SettingsWindow::updateDeviceTabWidgetsVisibility()
 		break;
 	}
 	setDeviceTabWidgetsVisibility(DeviceTab::Lightpack);
+	updateSerialPortWidgets();
+}
 
+void SettingsWindow::updateSerialPortWidgets()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	const SupportedDevices::DeviceType connectedDevice = Settings::getConnectedDevice();
+	const bool usesSerialPort = Settings::isConnectedDeviceUsesSerialPort();
+	ui->groupBox_SerialPort->setVisible(usesSerialPort);
+	if (!usesSerialPort)
+		return;
+
+	const bool isAdalight = connectedDevice == SupportedDevices::DeviceTypeAdalight;
+	const QString portName = isAdalight ? Settings::getAdalightSerialPortName() : Settings::getArdulightSerialPortName();
+	const QString baudRate = QString::number(isAdalight ? Settings::getAdalightSerialPortBaudRate() : Settings::getArdulightSerialPortBaudRate());
+
+	// Show what is configured; don't auto-pick another port here, the user decides
+	SerialPortComboHelper::populate(ui->comboBox_SerialPort, portName, false);
+	if (SerialPortComboHelper::selectedPortName(ui->comboBox_SerialPort) != portName)
+		SerialPortComboHelper::selectPortName(ui->comboBox_SerialPort, portName);
+
+	const QSignalBlocker blocker(ui->comboBox_SerialBaudRate);
+	ui->comboBox_SerialBaudRate->clear();
+	ui->comboBox_SerialBaudRate->addItems(Settings::getSupportedSerialPortBaudRates());
+	if (ui->comboBox_SerialBaudRate->findText(baudRate) < 0)
+		ui->comboBox_SerialBaudRate->addItem(baudRate);
+	ui->comboBox_SerialBaudRate->setCurrentText(baudRate);
+}
+
+void SettingsWindow::onRefreshSerialPorts_clicked()
+{
+	DEBUG_LOW_LEVEL << Q_FUNC_INFO;
+
+	// Keep the current choice if it is still there; otherwise this may pick a USB adapter,
+	// which is applied right away like a manual selection
+	SerialPortComboHelper::populate(ui->comboBox_SerialPort, SerialPortComboHelper::selectedPortName(ui->comboBox_SerialPort), false);
+	onSerialPort_changed();
+}
+
+void SettingsWindow::onSerialPort_changed()
+{
+	const QString portName = SerialPortComboHelper::selectedPortName(ui->comboBox_SerialPort);
+	if (portName.isEmpty())
+		return;
+
+	switch (Settings::getConnectedDevice()) {
+	case SupportedDevices::DeviceTypeAdalight:
+		if (portName != Settings::getAdalightSerialPortName())
+			Settings::setAdalightSerialPortName(portName);
+		break;
+	case SupportedDevices::DeviceTypeArdulight:
+		if (portName != Settings::getArdulightSerialPortName())
+			Settings::setArdulightSerialPortName(portName);
+		break;
+	default:
+		break;
+	}
+}
+
+void SettingsWindow::onSerialBaudRate_changed(int index)
+{
+	const QString baudRate = ui->comboBox_SerialBaudRate->itemText(index);
+	if (baudRate.toInt() <= 0)
+		return;
+
+	switch (Settings::getConnectedDevice()) {
+	case SupportedDevices::DeviceTypeAdalight:
+		if (baudRate.toInt() != Settings::getAdalightSerialPortBaudRate())
+			Settings::setAdalightSerialPortBaudRate(baudRate);
+		break;
+	case SupportedDevices::DeviceTypeArdulight:
+		if (baudRate.toInt() != Settings::getArdulightSerialPortBaudRate())
+			Settings::setArdulightSerialPortBaudRate(baudRate);
+		break;
+	default:
+		break;
+	}
 }
 
 void SettingsWindow::setDeviceTabWidgetsVisibility(DeviceTab::Options options)
