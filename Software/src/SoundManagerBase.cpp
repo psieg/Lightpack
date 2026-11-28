@@ -28,6 +28,8 @@
 #include "PrismatikMath.hpp"
 #include "Settings.hpp"
 #include <QTime>
+#include <QCollator>
+#include <algorithm>
 
 #if defined(Q_OS_MACOS)
 #include "MacOSSoundManager.h"
@@ -94,6 +96,14 @@ void SoundManagerBase::requestDeviceList()
 	int recommended = -1;
 	
 	populateDeviceList(devices, recommended);
+
+	// Alphabetical, case-insensitive and number-aware ("In 2" < "In 10"); entries are matched by id
+	QCollator collator;
+	collator.setNumericMode(true);
+	collator.setCaseSensitivity(Qt::CaseInsensitive);
+	std::stable_sort(devices.begin(), devices.end(), [&collator](const SoundManagerDeviceInfo &a, const SoundManagerDeviceInfo &b) {
+		return collator.compare(a.name, b.name) < 0;
+	});
 
 	emit deviceList(devices, recommended);
 }

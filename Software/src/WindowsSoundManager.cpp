@@ -29,7 +29,38 @@
 #include "bass.h"
 #include "basswasapi.h"
 
-#define MAX_DEVICE_ID 100
+namespace {
+// Only inputs (microphones, line-in...) and loopback devices (what an output is playing)
+// can be captured. Plain output endpoints are listed by BASSWASAPI too but are useless here.
+bool isCaptureDevice(const BASS_WASAPI_DEVICEINFO &inf)
+{
+	return (inf.flags & BASS_DEVICE_ENABLED) && (inf.flags & BASS_DEVICE_INPUT);
+}
+
+// The loopback of the default output device, or the first enabled loopback device, or -1.
+// Note: BASSWASAPI also lists disabled/unplugged endpoints Windows remembers (e.g. every
+// monitor ever connected), so there can be hundreds of devices; enumerate until it fails.
+int findRecommendedLoopbackDevice()
+{
+	QByteArray defaultOutputId;
+	int firstLoopback = -1;
+	BASS_WASAPI_DEVICEINFO inf;
+	for (int i = 0; BASS_WASAPI_GetDeviceInfo(i, &inf); i++) {
+		if (!(inf.flags & BASS_DEVICE_ENABLED))
+			continue;
+		if (!(inf.flags & BASS_DEVICE_INPUT) && (inf.flags & BASS_DEVICE_DEFAULT))
+			defaultOutputId = QByteArray(inf.id);
+		if (inf.flags & BASS_DEVICE_LOOPBACK) {
+			// A loopback device has the same endpoint id as its output and is listed after it
+			if (!defaultOutputId.isEmpty() && defaultOutputId == QByteArray(inf.id))
+				return i;
+			if (firstLoopback < 0)
+				firstLoopback = i;
+		}
+	}
+	return firstLoopback;
+}
+} // namespace
 
 WindowsSoundManager::WindowsSoundManager(int hWnd, QObject *parent) : SoundManagerBase(parent)
 {
@@ -68,19 +99,15 @@ DWORD CALLBACK DuffRecording(void *buffer, DWORD length, void *user)
 
 void WindowsSoundManager::populateDeviceList(QList<SoundManagerDeviceInfo>& devices, int& recommended)
 {
-	for (int i = 0; i < MAX_DEVICE_ID; i++) {
-		BASS_WASAPI_DEVICEINFO inf;
-		if (BASS_WASAPI_GetDeviceInfo(i, &inf)) {
-			if (inf.flags & BASS_DEVICE_ENABLED) {
-				devices.append(SoundManagerDeviceInfo(inf.name, i));
-
-				if (inf.flags & BASS_DEVICE_LOOPBACK) {
-					devices.last().name.append(tr(" (loopback)"));
-					if (!recommended) recommended = i;
-				}
-			}
-		}
+	BASS_WASAPI_DEVICEINFO inf;
+	for (int i = 0; BASS_WASAPI_GetDeviceInfo(i, &inf); i++) {
+		if (!isCaptureDevice(inf))
+			continue;
+		devices.append(SoundManagerDeviceInfo(inf.name, i));
+		if (inf.flags & BASS_DEVICE_LOOPBACK)
+			devices.last().name.append(tr(" (loopback)"));
 	}
+	recommended = findRecommendedLoopbackDevice();
 }
 
 void WindowsSoundManager::start(bool isEnabled)
@@ -102,39 +129,28 @@ void WindowsSoundManager::start(bool isEnabled)
 			}
 		}
 
-		int device = -2;
-		if (m_device == -1) {
-			// Fallback: first enabled loopback device (recommended)
-			for (int i = 0; i < MAX_DEVICE_ID; i++) {
-				BASS_WASAPI_DEVICEINFO inf;
-				if (BASS_WASAPI_GetDeviceInfo(i, &inf)) {
-					if ((inf.flags & BASS_DEVICE_ENABLED) &&
-						(inf.flags & BASS_DEVICE_LOOPBACK)) {
-						device = i;
-						break;
-					}
-				}
-			}
-			if (device == -2) {
-				qWarning() << Q_FUNC_INFO << "No saved device. No auto fallback device found.";
-			} else {
-				DEBUG_LOW_LEVEL << Q_FUNC_INFO << "No saved device. Falling back to first enabled loopback: " << device;
-			}
-		} else {
+		int device = -1;
+		if (m_device != -1) {
 			BASS_WASAPI_DEVICEINFO inf;
-			if (BASS_WASAPI_GetDeviceInfo(m_device, &inf)) {
-				if (!(inf.flags & BASS_DEVICE_ENABLED)) {
-					qCritical() << Q_FUNC_INFO << "Selected device is not enabled!";
-					return;
-				}
-				if (!(inf.flags & BASS_DEVICE_LOOPBACK)) {
-					qWarning() << Q_FUNC_INFO << "Selected device is not a loopback device";
-				}
+			if (!BASS_WASAPI_GetDeviceInfo(m_device, &inf)) {
+				qWarning() << Q_FUNC_INFO << "Unable to get device info for" << m_device << "- falling back";
+			} else if (!(inf.flags & BASS_DEVICE_ENABLED)) {
+				qWarning() << Q_FUNC_INFO << "Selected device is not enabled - falling back";
+			} else if (!(inf.flags & BASS_DEVICE_INPUT)) {
+				qWarning() << Q_FUNC_INFO << "Selected device is an output, which can't be captured - falling back";
 			} else {
-				qCritical() << Q_FUNC_INFO << "Unable to get device info for" << m_device;
-				return;
+				device = m_device;
 			}
-			device = m_device;
+		}
+		if (device == -1) {
+			// No usable saved device: the default output's loopback (recommended)
+			device = findRecommendedLoopbackDevice();
+			if (device == -1) {
+				qWarning() << Q_FUNC_INFO << "No loopback device found, using the default input device";
+				device = -2; // BASSWASAPI: default input device
+			} else {
+				DEBUG_LOW_LEVEL << Q_FUNC_INFO << "Falling back to loopback device" << device;
+			}
 		}
 
 		// initialize input WASAPI device
