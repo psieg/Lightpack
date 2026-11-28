@@ -44,6 +44,7 @@ Wizard::Wizard(bool isInitFromSettings, QWidget *parent) :
 	_transSettings = new TransientSettings;
 
 	_ui->setupUi(this);
+	_defaultStyle = wizardStyle();
 	this->setPage(Page_LightpackDiscovery, new LightpackDiscoveryPage(_isInitFromSettings, _transSettings) );
 	this->setPage(Page_ChooseDevice, new SelectDevicePage(_isInitFromSettings, _transSettings) );
 	this->setPage(Page_ConfigureDevice, new ConfigureDevicePage(_isInitFromSettings, _transSettings) );
@@ -52,6 +53,30 @@ Wizard::Wizard(bool isInitFromSettings, QWidget *parent) :
 	this->setPage(Page_ZonePlacement, new ZonePlacementPage(_isInitFromSettings, _transSettings));
 	this->setPage(Page_ConfigureDevicePower, new ConfigureDevicePowerPage(_isInitFromSettings, _transSettings));
 	this->setPage(Page_GlobalColorCoef, new GlobalColorCoefPage(_isInitFromSettings, _transSettings));
+
+	updateWizardStyle();
+}
+
+void Wizard::changeEvent(QEvent *event)
+{
+	QWizard::changeEvent(event);
+	if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
+		updateWizardStyle();
+}
+
+void Wizard::updateWizardStyle()
+{
+#ifdef Q_OS_WIN
+	// The Windows default AeroStyle paints the page area white with a hardcoded
+	// blue title, ignoring the palette. With a dark palette (Qt 6 dark mode) the
+	// page text becomes white-on-white, so fall back to ModernStyle, which
+	// follows the palette.
+	const QPalette pal = palette();
+	const bool isDark = pal.color(QPalette::Window).lightness() < pal.color(QPalette::WindowText).lightness();
+	const WizardStyle wanted = isDark ? ModernStyle : _defaultStyle;
+	if (wizardStyle() != wanted)
+		setWizardStyle(wanted);
+#endif
 }
 
 Wizard::~Wizard()

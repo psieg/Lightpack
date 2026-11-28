@@ -39,6 +39,15 @@ GlobalColorCoefPage::GlobalColorCoefPage(bool isInitFromSettings, TransientSetti
 	_ui(new Ui::GlobalColorCoefPage)
 {
 	_ui->setupUi(this);
+
+	// The color swatches paint their palette's Window color. Without an explicit
+	// background role they inherit the parent's, which QWizard::ModernStyle (used
+	// in dark mode) sets to Base, so they would paint white instead.
+	const QList<QLabel *> labels = findChildren<QLabel *>();
+	for (QLabel *label : labels) {
+		if (label->autoFillBackground() && label->palette().isBrushSet(QPalette::Active, QPalette::Window))
+			label->setBackgroundRole(QPalette::Window);
+	}
 }
 
 GlobalColorCoefPage::~GlobalColorCoefPage()
